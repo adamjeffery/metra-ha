@@ -117,6 +117,13 @@ const STYLES = `
     color: var(--mtt-bg);
     background: var(--mtt-fg);
   }
+  /* Sized for the longest number shown, so rows line up without spare room. 12px is the badge padding. */
+  .number {
+    min-width: calc(var(--mtt-number-chars) * 1ch + 12px + var(--mtt-star-width));
+    font-size: calc(0.875rem * var(--mtt-scale));
+    font-weight: 700;
+    white-space: nowrap;
+  }
   .star { margin-left: 4px; color: var(--mtt-warn); }
   .old-time { margin-left: 6px; font-size: calc(0.8rem * var(--mtt-scale)); color: var(--mtt-muted); text-decoration: line-through; }
   .scheduled-time { margin-left: 6px; font-size: calc(0.8rem * var(--mtt-scale)); color: var(--mtt-muted); }
@@ -126,7 +133,7 @@ const STYLES = `
   .warn { color: var(--mtt-warn); color: color-mix(in srgb, var(--mtt-warn) 78%, var(--mtt-fg)); font-weight: 600; }
   .muted { color: var(--mtt-muted); }
 
-  .row { display: grid; grid-template-columns: calc(72px + (var(--mtt-scale) - 1) * 50px) 1fr auto; gap: 8px; align-items: center; padding: calc(9px * var(--mtt-scale)) 0; border-top: 1px solid var(--mtt-rule); }
+  .row { display: grid; grid-template-columns: max-content 1fr auto; gap: calc(10px * var(--mtt-scale)); align-items: center; padding: calc(9px * var(--mtt-scale)) 0; border-top: 1px solid var(--mtt-rule); }
   .row:first-child { border-top: 0; }
   .time-line { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; }
   .time-line .old-time, .time-line .scheduled-time { margin-left: 0; }
@@ -145,8 +152,8 @@ const STYLES = `
   .pin-label { padding: 8px 0 2px; font-size: calc(0.7rem * var(--mtt-scale)); color: var(--mtt-muted); border-top: 1px dashed var(--mtt-rule); }
   .pin-label + .row { border-top: 0; }
 
-  .compact-row { display: grid; grid-template-columns: calc(64px + (var(--mtt-scale) - 1) * 50px) 1fr auto auto; gap: 8px; align-items: center; padding: calc(4px * var(--mtt-scale)) 0; font-size: calc(0.875rem * var(--mtt-scale)); }
-  .compact-row .badge { font-size: calc(0.8rem * var(--mtt-scale)); }
+  .compact-row { display: grid; grid-template-columns: max-content 1fr auto auto; gap: calc(8px * var(--mtt-scale)); align-items: center; padding: calc(4px * var(--mtt-scale)) 0; font-size: calc(0.875rem * var(--mtt-scale)); }
+  .compact-row .badge, .compact-row .number { font-size: calc(0.8rem * var(--mtt-scale)); }
   .compact-row .time { font-size: inherit; }
   .compact-row .countdown { min-width: calc(44px * var(--mtt-scale)); }
   .compact-delay { font-size: calc(0.8rem * var(--mtt-scale)); }
@@ -416,6 +423,10 @@ class MetraTrainTrackerCard extends HTMLElement {
     const rows = facts.map(render);
     if (pin) rows.push(el("div", "pin-label", "★ Next favorite"), render(pin));
     const list = el("div", "");
+    const shown = pin ? [...facts, pin] : facts;
+    const markFavorites = this._config.favorites !== "highlight" && shown.some((trip) => trip.favorite);
+    list.style.setProperty("--mtt-number-chars", Math.max(...shown.map((trip) => `#${trip.train}`.length)));
+    list.style.setProperty("--mtt-star-width", markFavorites ? "calc(1.2em + 4px)" : "0px");
     list.append(...rows);
     return [list];
   }
@@ -485,7 +496,7 @@ class MetraTrainTrackerCard extends HTMLElement {
 
   _renderRow(trip) {
     const row = el("div", this._isHighlighted(trip) ? "row highlight" : "row");
-    const badge = el("div", "");
+    const badge = el("div", "number");
     this._renderTrainBadge(trip, badge);
 
     const details = el("div", "details");
@@ -509,7 +520,7 @@ class MetraTrainTrackerCard extends HTMLElement {
 
   _renderCompactRow(trip) {
     const row = el("div", this._isHighlighted(trip) ? "compact-row highlight" : "compact-row");
-    const badge = el("span", "");
+    const badge = el("span", "number");
     this._renderTrainBadge(trip, badge);
     const time = this._config.time_display === "scheduled" ? trip.scheduled : trip.expected;
     const delay = trip.delayed ? trip.status.text.replace(/ min (late|early)$/, "") : "";
