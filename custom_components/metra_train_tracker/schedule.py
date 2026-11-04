@@ -183,19 +183,21 @@ def build_schedule(
     calls.sort(key=lambda call: call[:2])
     trips = [call[2] for call in calls[: max(query.next_trips, 0)]]
     # Looked up before the limit is applied, as a favorite can be further away than that.
-    next_favorite = next((call[2] for call in calls if call[2]["favorite"]), None)
+    favorites = [call[2] for call in calls if call[2]["favorite"]]
 
     payload: dict[str, Any] = {
         "generatedAt": now_central.isoformat(),
         "filters": {
             "route": query.route_id,
             "stop": query.stop_id,
+            "stopName": schedule.stop_names.get(query.stop_id, query.stop_id),
             "direction": query.direction,
             "next": query.next_trips,
             "ignoreTerms": list(query.ignore_terms) or None,
             "favoriteTrains": list(query.favorite_trains) or None,
         },
-        "nextFavorite": next_favorite,
+        "nextFavorite": favorites[0] if favorites else None,
+        "favoriteTrips": favorites[: max(query.next_trips, 0)],
         "routes": [],
     }
     alerts = route_alerts.get(query.route_id.casefold(), [])
@@ -267,6 +269,7 @@ def _build_call(
         "direction": DIRECTION_NAMES.get(trip.direction_id),
         "scheduledStartTime": start.isoformat() if start else None,
         "scheduledEndTime": end.isoformat() if end else None,
+        **_origin_payload(schedule, stop_time, service_date),
         "position": _position_payload(realtime, trip_key, trip_update),
         "alerts": trip_alerts.get(trip_key, []),
         "stops": [
@@ -286,6 +289,24 @@ def _build_call(
         ],
     }
     return (scheduled.timestamp() if scheduled else float("inf"), trip_key, payload)
+
+
+def _origin_payload(
+    schedule: GtfsSchedule, stop_time: StopTime, service_date: date
+) -> dict[str, str | None]:
+    """Describe where a train starts, or nothing if it starts at this station."""
+    trip = stop_time.trip
+    departure = _to_datetime(service_date, trip.origin_departure_seconds)
+    if (
+        trip.origin_stop_id is None
+        or departure is None
+        or stop_time.sequence == trip.first_sequence
+    ):
+        return {"originName": None, "originDepartureTime": None}
+    return {
+        "originName": schedule.stop_names.get(trip.origin_stop_id, trip.origin_stop_id),
+        "originDepartureTime": _clock(departure),
+    }
 
 
 def _to_datetime(service_date: date, seconds: int | None) -> datetime | None:

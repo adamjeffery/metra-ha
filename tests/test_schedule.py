@@ -577,3 +577,34 @@ def test_picker_omits_origin_when_train_starts_at_the_station() -> None:
     assert trains_at_station(schedule, query, NOW.date())["38"] == (
         "38 – Wheaton 8:25 AM to Chicago OTC (Weekdays)"
     )
+
+
+def test_favorite_trips_listed_up_to_the_limit() -> None:
+    """The card's favorites-only mode gets every favorite within the limit."""
+    query = ScheduleQuery(
+        "UP-W", "LOMBARD", "inbound", 1, next_trips=1, favorite_trains=("38", "42")
+    )
+    payload = build(query=query)
+    assert [trip["train"] for trip in payload["favoriteTrips"]] == ["38"]
+    assert payload["nextFavorite"]["train"] == "38"
+    wider = ScheduleQuery(
+        "UP-W", "LOMBARD", "inbound", 1, next_trips=5, favorite_trains=("38", "42")
+    )
+    assert [trip["train"] for trip in build(query=wider)["favoriteTrips"]] == ["38", "42"]
+
+
+def test_payload_includes_origin_and_station_name() -> None:
+    """The card can show where a train starts and name the station with no trains."""
+    payload = build()
+    trip = payload["routes"][0]["trips"][0]
+    assert trip["originName"] == "Wheaton"
+    assert trip["originDepartureTime"] == "08:25:00"
+    assert payload["filters"]["stopName"] == "Lombard"
+
+
+def test_payload_omits_origin_when_train_starts_at_the_station() -> None:
+    """A train starting here has no separate origin to show."""
+    trip = build(query=ScheduleQuery("UP-W", "LOMBARD", "outbound", 0))["routes"][0]["trips"][0]
+    assert trip["train"] == "39"
+    assert trip["originName"] is None
+    assert trip["originDepartureTime"] is None

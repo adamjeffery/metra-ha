@@ -137,11 +137,14 @@ class MetraScheduleSensor(MetraSensor):
     """The next arrival, also holding the full schedule that the card displays."""
 
     # Changes every minute and isn't useful as history.
-    _unrecorded_attributes = frozenset({"generatedAt", "filters", "nextFavorite", "routes"})
+    _unrecorded_attributes = frozenset(
+        {"generatedAt", "filters", "nextFavorite", "favoriteTrips", "routes"}
+    )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the schedule for the card."""
         return {
-            key: self.payload[key] for key in ("generatedAt", "filters", "nextFavorite", "routes")
+            key: self.payload[key]
+            for key in ("generatedAt", "filters", "nextFavorite", "favoriteTrips", "routes")
         }

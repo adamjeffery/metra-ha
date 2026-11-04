@@ -64,10 +64,23 @@ entity: sensor.up_w_lombard_inbound_next_arrival
 time_format: 12h
 ```
 
-| Option | Required | Default | Description |
-| --- | --- | --- | --- |
-| `entity` | Yes | | The station's **Next arrival** sensor |
-| `time_format` | No | `12h` | `12h` (9:04 AM), `24h` (09:04) or `raw` (09:04:00) |
+| Option | Default | Choices |
+| --- | --- | --- |
+| `entity` | Required | The station's **Next arrival** sensor |
+| `layout` | `list` | `list`, `compact`, or `next_train` for one large countdown |
+| `time_display` | `expected` | `expected` crosses out the original time when a train is late. Also `scheduled` or `both` |
+| `time_format` | `12h` | `12h` (9:04 AM), `24h` (09:04) or `raw` (09:04:00) |
+| `countdown` | `minutes` | `minutes`, `auto` for the last 30 minutes only, or `off` |
+| `alerts` | `summary` | `summary` is a chip you tap to open. Also `full` or `hidden` |
+| `favorites` | `highlight` | `highlight`, `mark` for a star, or `only` to list nothing else |
+| `pin_favorite` | `false` | Always show the next favorite, even if it's further out than the list |
+| `max_trains` | All | Up to the station's **Trains to show** setting |
+| `title` | Line and station | Any text |
+| `show_header` | `true` | Hides the title. Alerts still show |
+| `show_origin` | `false` | Adds where each train starts, like `leaves Elburn 4:15 AM` |
+
+Trains with live data show **On time** or how late they are. Trains without any yet show
+**Scheduled**.
 
 ## Example automation
 
@@ -98,8 +111,8 @@ actions:
 - **Upcoming trains:** only the rest of the current service day is shown, so after the
   last train the list is empty until the next day's service begins.
 - **Favorite trains:** identified by train number, so they survive schedule updates. The
-  favorite sensors look at all of today's remaining trains, but the card only marks
-  favorites among the trains it shows, so a favorite further away won't appear there.
+  favorite sensors look at all of today's remaining trains. The card only marks favorites
+  among the trains it shows, unless you turn on `pin_favorite`.
 
 ## Troubleshooting
 

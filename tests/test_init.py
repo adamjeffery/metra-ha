@@ -519,6 +519,7 @@ async def test_favorite_sensors(hass: HomeAssistant, aioclient_mock: AiohttpClie
     attributes = hass.states.get(NEXT_ARRIVAL).attributes
     assert attributes["nextFavorite"]["train"] == "42"
     assert attributes["filters"]["favoriteTrains"] == ["42"]
+    assert [trip["train"] for trip in attributes["favoriteTrips"]] == ["42"]
 
 
 async def test_favorite_sensors_unknown_when_favorites_have_passed(
