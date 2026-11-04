@@ -15,6 +15,7 @@ For each station you add:
 | Next train | The next train's number |
 | Next train delay | Minutes late, or negative if early |
 | Service alert | On when the line has a service alert, with the text as an attribute |
+| Next favorite arrival, train and delay | The same details for your next favorite train, if the station has favorites |
 
 You also get the **Metra Train Tracker** dashboard card, with no separate install.
 
@@ -47,6 +48,7 @@ Copy `custom_components/metra_train_tracker` into the `custom_components` folder
    - **Trains to show**: 1 to 10
    - **Alert terms to ignore**: hides alerts containing these words, such as
      `construction`
+   - **Favorite trains** (optional): the trains you usually catch
 3. Repeat for each station and direction you want.
 
 To change a station later, use the ⋮ menu next to it on the integration page.
@@ -69,19 +71,19 @@ time_format: 12h
 
 ## Example automation
 
-Get a notification when your train is running late:
+Get a notification when one of your favorite trains is running late:
 
 ```yaml
 alias: Train running late
 triggers:
   - trigger: numeric_state
-    entity_id: sensor.up_w_lombard_inbound_next_train_delay
+    entity_id: sensor.up_w_lombard_inbound_next_favorite_delay
     above: 5
 actions:
   - action: notify.notify
     data:
       message: >-
-        Train {{ states('sensor.up_w_lombard_inbound_next_train') }} is
+        Train {{ states('sensor.up_w_lombard_inbound_next_favorite_train') }} is
         {{ trigger.to_state.state }} minutes late.
 ```
 
@@ -95,6 +97,9 @@ actions:
   during an outage, after which the entities become unavailable.
 - **Upcoming trains:** only the rest of the current service day is shown, so after the
   last train the list is empty until the next day's service begins.
+- **Favorite trains:** identified by train number, so they survive schedule updates. The
+  favorite sensors look at all of today's remaining trains, but the card only marks
+  favorites among the trains it shows, so a favorite further away won't appear there.
 
 ## Troubleshooting
 
@@ -110,4 +115,28 @@ actions:
 ```bash
 pip install -r requirements_test.txt
 pytest
+```
+
+## Releasing
+
+HACS offers GitHub releases to users, so pushing to `main` doesn't send them anything.
+
+1. Update `version` in `custom_components/metra_train_tracker/manifest.json`, then commit
+   and push.
+2. Tag that commit with the same version, and push the tag:
+
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+The Release workflow checks that the tag matches the manifest, runs the validation and
+tests, and publishes the release only if they all pass. Tags like `v0.3.0b1` become
+pre-releases, which HACS only offers to people who have turned on beta versions.
+
+If a check fails, delete the tag, fix the problem, and tag again:
+
+```bash
+git tag -d v0.2.0
+git push origin :refs/tags/v0.2.0
 ```

@@ -15,6 +15,7 @@ from .gtfs import GtfsSchedule, Route, StopTime
 MAX_REALTIME_OFFSET_SECONDS = 12 * 3600
 ON_TIME_TOLERANCE_SECONDS = 60
 DIRECTION_NAMES = {0: "outbound", 1: "inbound"}
+DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +28,7 @@ class ScheduleQuery:
     direction_id: int | None = None
     next_trips: int = 3
     ignore_terms: tuple[str, ...] = ()
+    favorite_trains: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -65,6 +67,58 @@ def extract_train(trip_id: str) -> str | None:
         if char.isascii() and char.isdigit():
             return parts[1][index:]
     return None
+
+
+def trains_at_station(schedule: GtfsSchedule, query: ScheduleQuery, today: date) -> dict[str, str]:
+    """Return the current trains calling at a station as {train: label}, by time of day.
+
+    Trains are identified by number because trip IDs change between schedule versions.
+    """
+    details: dict[str, tuple[int, str, str]] = {}
+    regular_days: dict[str, set[int]] = {}
+    one_off_days: dict[str, set[int]] = {}
+    for stop_time in schedule.stop_times_by_stop.get(query.stop_id.casefold(), ()):
+        trip = stop_time.trip
+        train = extract_train(trip.trip_id)
+        seconds = stop_time.arrival if stop_time.arrival is not None else stop_time.departure
+        if (
+            train is None
+            or seconds is None
+            or trip.route_id.casefold() != query.route_id.casefold()
+            or (query.direction_id is not None and trip.direction_id != query.direction_id)
+            or not schedule.is_service_current(trip.service_id, today)
+        ):
+            continue
+        # Sorted and labelled by clock time, so a 25:30 train comes first as 1:30 AM.
+        clock = seconds % 86400
+        hours, minutes = clock // 3600, clock % 3600 // 60
+        time_text = f"{hours % 12 or 12}:{minutes:02d} {'AM' if hours < 12 else 'PM'}"
+        if train not in details or clock < details[train][0]:
+            details[train] = (clock, time_text, trip.headsign)
+
+        calendar = schedule.calendars.get(trip.service_id.casefold())
+        if calendar is not None and calendar.end_date >= today:
+            days = regular_days if calendar.end_date > calendar.start_date else one_off_days
+            days.setdefault(train, set()).update(
+                index for index, runs in enumerate(calendar.weekdays) if runs
+            )
+
+    labels = {}
+    for train, (_, time_text, headsign) in sorted(details.items(), key=lambda item: item[1][0]):
+        # A one-day special says little about when a regular train runs.
+        days_text = _format_days(regular_days.get(train) or one_off_days.get(train) or set())
+        suffix = f" ({days_text})" if days_text else ""
+        labels[train] = f"{train} – {time_text} to {headsign}{suffix}"
+    return labels
+
+
+def _format_days(days: set[int]) -> str:
+    """Describe days of the week, where Monday is 0."""
+    if days == set(range(7)):
+        return "Daily"
+    if days == set(range(5)):
+        return "Weekdays"
+    return ", ".join(DAY_NAMES[day] for day in sorted(days))
 
 
 def delay_minutes(
@@ -109,6 +163,8 @@ def build_schedule(
 
     calls.sort(key=lambda call: call[:2])
     trips = [call[2] for call in calls[: max(query.next_trips, 0)]]
+    # Looked up before the limit is applied, as a favorite can be further away than that.
+    next_favorite = next((call[2] for call in calls if call[2]["favorite"]), None)
 
     payload: dict[str, Any] = {
         "generatedAt": now_central.isoformat(),
@@ -118,7 +174,9 @@ def build_schedule(
             "direction": query.direction,
             "next": query.next_trips,
             "ignoreTerms": list(query.ignore_terms) or None,
+            "favoriteTrains": list(query.favorite_trains) or None,
         },
+        "nextFavorite": next_favorite,
         "routes": [],
     }
     alerts = route_alerts.get(query.route_id.casefold(), [])
@@ -179,9 +237,11 @@ def _build_call(
     start = _to_datetime(service_date, trip.start_seconds)
     end = _to_datetime(service_date, trip.end_seconds)
     expected = realtime_arrival or realtime_departure or scheduled
+    train = extract_train(trip.trip_id)
     payload = {
         "tripId": trip.trip_id,
-        "train": extract_train(trip.trip_id),
+        "train": train,
+        "favorite": train in query.favorite_trains,
         "serviceId": trip.service_id,
         "tripHeadsign": trip.headsign,
         "directionId": trip.direction_id,

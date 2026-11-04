@@ -27,6 +27,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 from custom_components.metra_train_tracker.const import (
     CENTRAL,
     CONF_DIRECTION,
+    CONF_FAVORITE_TRAINS,
     CONF_IGNORE_TERMS,
     CONF_LINE,
     CONF_NEXT,
@@ -53,6 +54,9 @@ NEXT_ARRIVAL = "sensor.up_w_lombard_inbound_next_arrival"
 NEXT_TRAIN = "sensor.up_w_lombard_inbound_next_train"
 NEXT_DELAY = "sensor.up_w_lombard_inbound_next_train_delay"
 ALERT = "binary_sensor.up_w_lombard_inbound_service_alert"
+FAVORITE_ARRIVAL = "sensor.up_w_lombard_inbound_next_favorite_arrival"
+FAVORITE_TRAIN = "sensor.up_w_lombard_inbound_next_favorite_train"
+FAVORITE_DELAY = "sensor.up_w_lombard_inbound_next_favorite_delay"
 
 
 @pytest.fixture(autouse=True)
@@ -413,9 +417,17 @@ async def test_add_station_creates_entities(
         },
     )
     await hass.async_block_till_done()
+    assert result["step_id"] == "favorites"
+    # A new station's trains aren't in the loaded schedule, so this reads the cached copy.
+    options = result["data_schema"].schema[CONF_FAVORITE_TRAINS].config["options"]
+    assert options[1] == {"value": "38", "label": "38 – 9:04 AM to Chicago OTC (Weekdays)"}
+
+    result = await hass.config_entries.subentries.async_configure(result["flow_id"], {})
+    await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "UP-W Lombard Inbound"
     assert result["data"][CONF_NEXT] == 2
+    assert result["data"][CONF_FAVORITE_TRAINS] == []
 
     assert hass.states.get(NEXT_TRAIN).state == "38"
     assert len(hass.states.get(NEXT_ARRIVAL).attributes["routes"][0]["trips"]) == 2
@@ -455,6 +467,8 @@ async def test_reconfigure_station(
         result["flow_id"],
         {CONF_STATION: "LOMBARD", CONF_DIRECTION: "outbound", CONF_NEXT: 1},
     )
+    assert result["step_id"] == "favorites"
+    result = await hass.config_entries.subentries.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()
     assert result["reason"] == "reconfigure_successful"
 
@@ -475,6 +489,102 @@ async def test_removing_station_removes_entities(
     hass.config_entries.async_remove_subentry(entry, subentry.subentry_id)
     await hass.async_block_till_done()
     assert entity_registry.async_get(NEXT_TRAIN) is None
+
+
+async def test_favorite_sensors_only_with_favorites(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Stations without favorites don't get sensors that would always be empty."""
+    await setup_entry(hass, aioclient_mock)
+    assert hass.states.get(FAVORITE_TRAIN) is None
+
+
+async def test_favorite_sensors(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker) -> None:
+    """Favorite sensors follow the favorite, even outside the trains shown."""
+    late = int(datetime(2026, 11, 4, 10, 11, tzinfo=CENTRAL).timestamp())
+    await setup_entry(
+        hass,
+        aioclient_mock,
+        STATION_DATA | {CONF_NEXT: 1, CONF_FAVORITE_TRAINS: ["42"]},
+        tripupdates=trip_updates_feed(("UP-W_UW42_V1_A", "LOMBARD", late, None)),
+    )
+    # The next train overall is 38, and that's all the card is showing.
+    assert hass.states.get(NEXT_TRAIN).state == "38"
+    assert hass.states.get(FAVORITE_TRAIN).state == "42"
+    assert hass.states.get(FAVORITE_DELAY).state == "7"
+    assert hass.states.get(FAVORITE_ARRIVAL).state == "2026-11-04T16:11:00+00:00"
+    attributes = hass.states.get(NEXT_ARRIVAL).attributes
+    assert attributes["nextFavorite"]["train"] == "42"
+    assert attributes["filters"]["favoriteTrains"] == ["42"]
+
+
+async def test_favorite_sensors_unknown_when_favorites_have_passed(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: FrozenDateTimeFactory
+) -> None:
+    """With no favorite left today, the sensors stay available with no value."""
+    freezer.move_to(datetime(2026, 11, 4, 11, 0, tzinfo=CENTRAL))
+    await setup_entry(hass, aioclient_mock, STATION_DATA | {CONF_FAVORITE_TRAINS: ["42"]})
+    assert hass.states.get(FAVORITE_TRAIN).state == "unknown"
+    assert hass.states.get(FAVORITE_DELAY).state == "unknown"
+
+
+async def test_set_and_clear_favorites_through_reconfigure(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, entity_registry: er.EntityRegistry
+) -> None:
+    """Favorites add sensors, tidy the input, and removing them removes the sensors."""
+    entry = await setup_entry(hass, aioclient_mock)
+    subentry_id = next(iter(entry.subentries))
+
+    async def reconfigure(favorites: list[str], expected_default: list[str]) -> None:
+        result = await entry.start_subentry_reconfigure_flow(hass, subentry_id)
+        result = await hass.config_entries.subentries.async_configure(
+            result["flow_id"], {CONF_LINE: "UP-W"}
+        )
+        result = await hass.config_entries.subentries.async_configure(
+            result["flow_id"],
+            {CONF_STATION: "LOMBARD", CONF_DIRECTION: "inbound", CONF_NEXT: 3},
+        )
+        schema = result["data_schema"].schema
+        marker = next(key for key in schema if key == CONF_FAVORITE_TRAINS)
+        assert marker.default() == expected_default
+        result = await hass.config_entries.subentries.async_configure(
+            result["flow_id"], {CONF_FAVORITE_TRAINS: favorites}
+        )
+        assert result["reason"] == "reconfigure_successful"
+        await hass.async_block_till_done()
+
+    await reconfigure([" 42 ", "38", "42", ""], [])
+    assert entry.subentries[subentry_id].data[CONF_FAVORITE_TRAINS] == ["38", "42"]
+    assert hass.states.get(FAVORITE_TRAIN).state == "38"
+
+    await reconfigure([], ["38", "42"])
+    assert entry.subentries[subentry_id].data[CONF_FAVORITE_TRAINS] == []
+    assert hass.states.get(FAVORITE_TRAIN) is None
+    assert entity_registry.async_get(FAVORITE_TRAIN) is None
+
+
+async def test_favorite_stored_for_saved_station_with_unreadable_list(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """If the trains can't be listed, saved favorites are kept and new ones can be typed."""
+    entry = await setup_entry(hass, aioclient_mock, STATION_DATA | {CONF_FAVORITE_TRAINS: ["42"]})
+    subentry_id = next(iter(entry.subentries))
+    schedule_cache_path(hass).unlink()
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry_id)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_LINE: "UP-W"}
+    )
+    # A station with no kept stop times forces the cached read, which now fails.
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {CONF_STATION: "WHEATON", CONF_DIRECTION: "inbound", CONF_NEXT: 3},
+    )
+    schema = result["data_schema"].schema
+    assert schema[CONF_FAVORITE_TRAINS].config["options"] == []
+    assert schema[CONF_FAVORITE_TRAINS].config["custom_value"] is True
+    marker = next(key for key in schema if key == CONF_FAVORITE_TRAINS)
+    assert marker.default() == ["42"]
 
 
 async def test_card_is_served(

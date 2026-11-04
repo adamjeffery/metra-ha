@@ -20,6 +20,7 @@ from .api import MetraApi, MetraAuthError, MetraError
 from .const import (
     CENTRAL,
     CONF_DIRECTION,
+    CONF_FAVORITE_TRAINS,
     CONF_IGNORE_TERMS,
     CONF_LINE,
     CONF_NEXT,
@@ -33,7 +34,13 @@ from .const import (
     UPDATE_INTERVAL,
 )
 from .gtfs import GtfsSchedule, ScheduleParseError, parse_schedule
-from .schedule import RealtimeData, ScheduleQuery, build_schedule, index_realtime
+from .schedule import (
+    RealtimeData,
+    ScheduleQuery,
+    build_schedule,
+    index_realtime,
+    trains_at_station,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,6 +72,7 @@ def query_from_subentry(data: dict[str, Any]) -> ScheduleQuery:
         direction_id=direction_id,
         next_trips=int(data.get(CONF_NEXT, DEFAULT_NEXT)),
         ignore_terms=tuple(data.get(CONF_IGNORE_TERMS) or ()),
+        favorite_trains=tuple(data.get(CONF_FAVORITE_TRAINS) or ()),
     )
 
 
@@ -161,6 +169,25 @@ class MetraCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             _write_atomic, schedule_cache_path(self.hass), content
         )
         return schedule
+
+    async def async_get_station_trains(self, query: ScheduleQuery) -> dict[str, str]:
+        """Return the trains to offer as favorites, or nothing if they can't be read."""
+        schedule = self.schedule
+        # Stop times are only kept for configured stations, so a new one needs a fresh read.
+        if query.stop_id.casefold() not in schedule.stop_times_by_stop:
+            try:
+                content = await self.hass.async_add_executor_job(
+                    schedule_cache_path(self.hass).read_bytes
+                )
+                schedule = await self.hass.async_add_executor_job(
+                    parse_schedule, content, {query.stop_id}
+                )
+            except (OSError, ScheduleParseError) as err:
+                _LOGGER.warning("Could not list trains at %s: %s", query.stop_id, err)
+                return {}
+        return await self.hass.async_add_executor_job(
+            trains_at_station, schedule, query, dt_util.now(CENTRAL).date()
+        )
 
     async def _async_load_cached(self) -> GtfsSchedule:
         path = schedule_cache_path(self.hass)

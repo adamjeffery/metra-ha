@@ -38,6 +38,15 @@
         "user": "Add station"
       },
       "step": {
+        "favorites": {
+          "data": {
+            "favorite_trains": "Favorite trains"
+          },
+          "data_description": {
+            "favorite_trains": "Optional. Adds next favorite sensors for this station, and marks these trains on the card."
+          },
+          "title": "Choose favorite trains"
+        },
         "station": {
           "data": {
             "direction": "Direction",
@@ -71,6 +80,15 @@
       },
       "next_delay": {
         "name": "Next train delay"
+      },
+      "next_favorite_arrival": {
+        "name": "Next favorite arrival"
+      },
+      "next_favorite_delay": {
+        "name": "Next favorite delay"
+      },
+      "next_favorite_train": {
+        "name": "Next favorite train"
       },
       "next_train": {
         "name": "Next train"

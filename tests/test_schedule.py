@@ -7,7 +7,11 @@ from datetime import datetime
 import pytest
 
 from custom_components.metra_train_tracker.const import CENTRAL
-from custom_components.metra_train_tracker.gtfs import ScheduleParseError, parse_gtfs_time, parse_schedule
+from custom_components.metra_train_tracker.gtfs import (
+    ScheduleParseError,
+    parse_gtfs_time,
+    parse_schedule,
+)
 from custom_components.metra_train_tracker.schedule import (
     RealtimeData,
     ScheduleQuery,
@@ -15,6 +19,7 @@ from custom_components.metra_train_tracker.schedule import (
     delay_minutes,
     extract_train,
     index_realtime,
+    trains_at_station,
 )
 
 from .conftest import alerts_feed, build_archive, empty_feed, trip_updates_feed
@@ -358,3 +363,191 @@ def test_unknown_route_or_station_is_empty() -> None:
     """Unknown values give no trains rather than an error."""
     assert build(query=ScheduleQuery("NOPE", "LOMBARD"))["routes"] == []
     assert build(query=ScheduleQuery("UP-W", "NOPE"))["routes"] == []
+
+
+# Favorite trains.
+
+
+def test_favorites_are_marked() -> None:
+    """Only the chosen trains are flagged."""
+    query = ScheduleQuery("UP-W", "LOMBARD", "inbound", 1, favorite_trains=("42",))
+    payload = build(query=query)
+    flags = {trip["train"]: trip["favorite"] for trip in payload["routes"][0]["trips"]}
+    assert flags == {"38": False, "42": True, "99": False}
+    assert payload["filters"]["favoriteTrains"] == ["42"]
+    assert payload["nextFavorite"]["train"] == "42"
+
+
+def test_next_favorite_found_beyond_the_display_limit() -> None:
+    """Notifications can't depend on how many trains the card shows."""
+    query = ScheduleQuery("UP-W", "LOMBARD", "inbound", 1, next_trips=1, favorite_trains=("42",))
+    payload = build(query=query)
+    assert trains(payload) == ["38"]
+    assert payload["nextFavorite"]["train"] == "42"
+
+
+def test_next_favorite_includes_realtime_delay() -> None:
+    """The favorite's delay comes from the realtime feed."""
+    feed = trip_updates_feed(("UP-W_UW42_V1_A", "LOMBARD", posix(10, 11), None))
+    query = ScheduleQuery("UP-W", "LOMBARD", "inbound", 1, favorite_trains=("42",))
+    assert build(query=query, data=realtime(feed))["nextFavorite"]["stops"][0]["delayedBy"] == 7
+
+
+def test_next_favorite_moves_on_once_passed() -> None:
+    """After a favorite has called, the next one takes over, then nothing."""
+    query = ScheduleQuery("UP-W", "LOMBARD", "inbound", 1, favorite_trains=("38", "42"))
+    assert build(query=query)["nextFavorite"]["train"] == "38"
+    at_930 = datetime(2026, 11, 4, 9, 30, tzinfo=CENTRAL)
+    assert build(query=query, now=at_930)["nextFavorite"]["train"] == "42"
+    at_1100 = datetime(2026, 11, 4, 11, 0, tzinfo=CENTRAL)
+    assert build(query=query, now=at_1100)["nextFavorite"] is None
+
+
+def test_no_favorites_by_default() -> None:
+    """Stations without favorites have none flagged."""
+    payload = build()
+    assert payload["nextFavorite"] is None
+    assert payload["filters"]["favoriteTrains"] is None
+    assert not any(trip["favorite"] for trip in payload["routes"][0]["trips"])
+
+
+def test_favorites_survive_new_trip_id_format() -> None:
+    """Metra's announced trip IDs still resolve to the same train number."""
+    archive = build_archive(
+        trips="""route_id,service_id,trip_id,trip_headsign,block_id,shape_id,direction_id
+UP-W,8_2009,UP-W_42_8_2009_5682524,Chicago OTC,5682524,1685230199,1
+""",
+        stop_times="""trip_id,arrival_time,departure_time,stop_id,stop_sequence
+UP-W_42_8_2009_5682524,10:04:00,10:04:00,LOMBARD,2
+""",
+        calendar="""service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date
+8_2009,1,1,1,1,1,0,0,20200101,20301231
+""",
+    )
+    query = ScheduleQuery("UP-W", "LOMBARD", "inbound", 1, favorite_trains=("42",))
+    assert build(query=query, archive=archive)["nextFavorite"]["train"] == "42"
+
+
+def test_trains_at_station_lists_current_trains_by_time() -> None:
+    """The picker offers each train once, in time order, with a readable label."""
+    schedule = parse_schedule(build_archive(), STOPS)
+    trains_found = trains_at_station(schedule, INBOUND, NOW.date())
+    assert trains_found == {
+        "99": "99 – 1:30 AM to Chicago OTC (Weekdays)",
+        "38": "38 – 9:04 AM to Chicago OTC (Weekdays)",
+        "42": "42 – 10:04 AM to Chicago OTC (Weekdays)",
+        # The fixture's holiday swap adds weekend service on a Thursday, which isn't regular.
+        "50": "50 – 12:00 PM to Chicago OTC (Sat, Sun)",
+    }
+    assert list(trains_found) == ["99", "38", "42", "50"]
+
+
+def test_trains_at_station_skips_expired_services() -> None:
+    """Trains from a calendar that has ended aren't offered."""
+    archive = build_archive(
+        calendar="""service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date
+WK,1,1,1,1,1,0,0,20200101,20201231
+WE,0,0,0,0,0,1,1,20200101,20301231
+""",
+        calendar_dates="service_id,date,exception_type\n",
+    )
+    schedule = parse_schedule(archive, STOPS)
+    assert list(trains_at_station(schedule, INBOUND, NOW.date())) == ["50"]
+
+
+def test_trains_at_station_keeps_service_added_on_a_later_date() -> None:
+    """A service with only a future special date is still current."""
+    schedule = parse_schedule(
+        build_archive(
+            calendar="""service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date
+WK,1,1,1,1,1,0,0,20200101,20201231
+""",
+            calendar_dates="service_id,date,exception_type\nWK,20261225,1\n",
+        ),
+        STOPS,
+    )
+    assert "38" in trains_at_station(schedule, INBOUND, NOW.date())
+
+
+def test_trains_at_station_respects_direction() -> None:
+    """Only trains in the chosen direction are offered."""
+    schedule = parse_schedule(build_archive(), STOPS)
+    outbound = ScheduleQuery("UP-W", "LOMBARD", "outbound", 0)
+    assert list(trains_at_station(schedule, outbound, NOW.date())) == ["39"]
+
+
+CALENDAR_HEADER = (
+    "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n"
+)
+
+
+def picker_label(calendar_rows: str, trips: str) -> str:
+    """Return train 1's picker label for the given calendar rows and service IDs."""
+    archive = build_archive(
+        calendar=CALENDAR_HEADER + calendar_rows,
+        calendar_dates="service_id,date,exception_type\n",
+        trips="route_id,service_id,trip_id,trip_headsign,block_id,shape_id,direction_id\n" + trips,
+        stop_times="trip_id,arrival_time,departure_time,stop_id,stop_sequence\n"
+        + "".join(
+            f"{line.split(',')[2]},09:00:00,09:00:00,LOMBARD,1\n" for line in trips.splitlines()
+        ),
+    )
+    schedule = parse_schedule(archive, STOPS)
+    return trains_at_station(schedule, INBOUND, NOW.date())["1"]
+
+
+@pytest.mark.parametrize(
+    ("weekdays", "expected"),
+    [
+        ("1,1,1,1,1,0,0", "Weekdays"),
+        ("0,0,0,0,0,1,1", "Sat, Sun"),
+        ("0,0,0,0,0,1,0", "Sat"),
+        ("1,1,1,1,1,1,1", "Daily"),
+        ("1,0,1,0,0,0,0", "Mon, Wed"),
+    ],
+)
+def test_picker_shows_days_a_train_runs(weekdays: str, expected: str) -> None:
+    """Trains at the same time can run on different days, so the label has to say."""
+    label = picker_label(
+        f"S,{weekdays},20200101,20301231\n", "UP-W,S,UP-W_UW1_V1_A,Chicago OTC,,S,1\n"
+    )
+    assert label == f"1 – 9:00 AM to Chicago OTC ({expected})"
+
+
+def test_picker_days_combine_across_services() -> None:
+    """A number on both weekday and weekend services runs daily."""
+    label = picker_label(
+        "A,1,1,1,1,1,0,0,20200101,20301231\nB,0,0,0,0,0,1,1,20200101,20301231\n",
+        "UP-W,A,UP-W_UW1_V1_A,Chicago OTC,,S,1\nUP-W,B,UP-W_UW1_V2_A,Chicago OTC,,S,1\n",
+    )
+    assert label.endswith("(Daily)")
+
+
+def test_picker_days_ignore_one_day_specials_and_expired_services() -> None:
+    """A one-off Sunday or an ended calendar doesn't change a regular train's days."""
+    label = picker_label(
+        "A,1,1,1,1,1,0,0,20200101,20301231\n"
+        "SPECIAL,0,0,0,0,0,0,1,20261122,20261122\n"
+        "OLD,0,0,0,0,0,1,0,20200101,20201231\n",
+        "UP-W,A,UP-W_UW1_V1_A,Chicago OTC,,S,1\n"
+        "UP-W,SPECIAL,UP-W_UW1_V2_A,Chicago OTC,,S,1\n"
+        "UP-W,OLD,UP-W_UW1_V3_A,Chicago OTC,,S,1\n",
+    )
+    assert label.endswith("(Weekdays)")
+
+
+def test_picker_days_use_one_day_special_when_nothing_else_exists() -> None:
+    """A train that only runs on a special date still says which day."""
+    label = picker_label(
+        "SPECIAL,0,0,0,0,0,0,1,20261122,20261122\n",
+        "UP-W,SPECIAL,UP-W_UW1_V1_A,Chicago OTC,,S,1\n",
+    )
+    assert label.endswith("(Sun)")
+
+
+def test_picker_omits_days_when_unknown() -> None:
+    """A service with no calendar row gets no day label rather than a wrong one."""
+    label = picker_label(
+        "A,1,1,1,1,1,0,0,20200101,20301231\n", "UP-W,NONE,UP-W_UW1_V1_A,Chicago OTC,,S,1\n"
+    )
+    assert label == "1 – 9:00 AM to Chicago OTC"

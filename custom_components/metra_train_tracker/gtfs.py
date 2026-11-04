@@ -93,6 +93,14 @@ class GtfsSchedule:
             return False
         return calendar.weekdays[service_date.weekday()]
 
+    def is_service_current(self, service_id: str, day: date) -> bool:
+        """Return whether a service can still run on or after a date."""
+        key = service_id.casefold()
+        if any(key in services and added >= day for added, services in self.added_services.items()):
+            return True
+        calendar = self.calendars.get(key)
+        return calendar is None or calendar.end_date >= day
+
 
 def parse_gtfs_time(value: str | None) -> int | None:
     """Convert HH:MM:SS to seconds. Hours may exceed 23 for after-midnight trips."""

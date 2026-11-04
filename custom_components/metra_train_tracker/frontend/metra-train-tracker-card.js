@@ -53,6 +53,7 @@ const STYLES = `
   .trip-header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 4px; }
   .train { font-weight: 700; }
   .headsign { font-size: 0.875rem; color: var(--metra-muted); }
+  .favorite { color: var(--metra-fg); }
   .inverted {
     display: inline-block;
     padding: 1px 6px;
@@ -212,6 +213,11 @@ class MetraCard extends HTMLElement {
   _renderTrip(trip) {
     const header = el("div", "trip-header");
     header.append(el("span", "train inverted", `#${trip.train}`), el("span", "headsign", `to ${trip.tripHeadsign ?? ""}`));
+    if (trip.favorite) {
+      const star = el("span", "favorite", "★");
+      star.title = "Favorite train";
+      header.append(star);
+    }
 
     const table = el("table");
     const stops = [...(trip.stops ?? [])].sort((a, b) => a.stopSequence - b.stopSequence);

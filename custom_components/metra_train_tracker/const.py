@@ -21,6 +21,7 @@ CONF_STATION = "station"
 CONF_DIRECTION = "direction"
 CONF_NEXT = "next"
 CONF_IGNORE_TERMS = "ignore_terms"
+CONF_FAVORITE_TRAINS = "favorite_trains"
 
 DIRECTION_BOTH = "both"
 DIRECTION_INBOUND = "inbound"

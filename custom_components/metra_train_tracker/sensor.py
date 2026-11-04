@@ -15,9 +15,10 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import SUBENTRY_STATION
+from .const import CONF_FAVORITE_TRAINS, DOMAIN, SUBENTRY_STATION
 from .coordinator import MetraConfigEntry
 from .entity import MetraEntity
 
@@ -29,11 +30,14 @@ class MetraSensorDescription(SensorEntityDescription):
     value_fn: Callable[[MetraEntity], Any]
 
 
-def _next_arrival(entity: MetraEntity) -> datetime | None:
-    stop = entity.next_stop
+def _expected_arrival(stop: dict[str, Any] | None) -> datetime | None:
     if stop is None or stop["expectedArrival"] is None:
         return None
     return datetime.fromisoformat(stop["expectedArrival"])
+
+
+def _next_arrival(entity: MetraEntity) -> datetime | None:
+    return _expected_arrival(entity.next_stop)
 
 
 SENSORS = (
@@ -61,6 +65,36 @@ SENSORS = (
 )
 
 
+FAVORITE_SENSORS = (
+    MetraSensorDescription(
+        key="next_favorite_arrival",
+        translation_key="next_favorite_arrival",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:star-outline",
+        value_fn=lambda entity: _expected_arrival(entity.next_favorite_stop),
+    ),
+    MetraSensorDescription(
+        key="next_favorite_train",
+        translation_key="next_favorite_train",
+        icon="mdi:star-outline",
+        value_fn=lambda entity: (
+            entity.payload["nextFavorite"]["train"] if entity.payload["nextFavorite"] else None
+        ),
+    ),
+    MetraSensorDescription(
+        key="next_favorite_delay",
+        translation_key="next_favorite_delay",
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        icon="mdi:star-outline",
+        value_fn=lambda entity: (
+            entity.next_favorite_stop["delayedBy"] if entity.next_favorite_stop else None
+        ),
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: MetraConfigEntry,
@@ -74,6 +108,17 @@ async def async_setup_entry(
             MetraScheduleSensor(entry.runtime_data, subentry, SENSORS[0]),
             *(MetraSensor(entry.runtime_data, subentry, item) for item in SENSORS[1:]),
         ]
+        if subentry.data.get(CONF_FAVORITE_TRAINS):
+            entities += [
+                MetraSensor(entry.runtime_data, subentry, item) for item in FAVORITE_SENSORS
+            ]
+        else:
+            # Favorites may have just been removed from this station.
+            registry = er.async_get(hass)
+            for item in FAVORITE_SENSORS:
+                unique_id = f"{subentry.subentry_id}_{item.key}"
+                if entity_id := registry.async_get_entity_id("sensor", DOMAIN, unique_id):
+                    registry.async_remove(entity_id)
         async_add_entities(entities, config_subentry_id=subentry.subentry_id)
 
 
@@ -92,9 +137,11 @@ class MetraScheduleSensor(MetraSensor):
     """The next arrival, also holding the full schedule that the card displays."""
 
     # Changes every minute and isn't useful as history.
-    _unrecorded_attributes = frozenset({"generatedAt", "filters", "routes"})
+    _unrecorded_attributes = frozenset({"generatedAt", "filters", "nextFavorite", "routes"})
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the schedule for the card."""
-        return {key: self.payload[key] for key in ("generatedAt", "filters", "routes")}
+        return {
+            key: self.payload[key] for key in ("generatedAt", "filters", "nextFavorite", "routes")
+        }

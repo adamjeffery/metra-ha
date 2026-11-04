@@ -59,6 +59,12 @@ class MetraEntity(CoordinatorEntity[MetraCoordinator]):
         return route["trips"][0] if route and route["trips"] else None
 
     @property
+    def next_favorite_stop(self) -> dict[str, Any] | None:
+        """Return the next favorite train's call at the station."""
+        trip = self.payload["nextFavorite"]
+        return trip["stops"][0] if trip else None
+
+    @property
     def next_stop(self) -> dict[str, Any] | None:
         """Return the next train's call at the station."""
         trip = self.next_trip

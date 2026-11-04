@@ -32,6 +32,7 @@ from homeassistant.helpers.selector import (
 from .api import MetraApi, MetraAuthError, MetraError
 from .const import (
     CONF_DIRECTION,
+    CONF_FAVORITE_TRAINS,
     CONF_IGNORE_TERMS,
     CONF_LINE,
     CONF_NEXT,
@@ -44,6 +45,7 @@ from .const import (
     MAX_NEXT,
     SUBENTRY_STATION,
 )
+from .coordinator import query_from_subentry
 from .gtfs import GtfsSchedule
 
 API_KEY_SCHEMA = vol.Schema(
@@ -102,12 +104,20 @@ class MetraConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
+def _train_sort_key(train: str) -> tuple[int, str]:
+    """Sort train numbers numerically, with anything else after them."""
+    return (int(train), "") if train.isdecimal() else (2**31, train)
+
+
 class StationSubentryFlow(ConfigSubentryFlow):
     """Adds or reconfigures a station: line first, then the station on that line."""
 
     def __init__(self) -> None:
         """Initialize the flow."""
         self._line: str | None = None
+        self._station_data: dict[str, Any] = {}
+        self._title = ""
+        self._unique_id = ""
 
     @property
     def _is_reconfigure(self) -> bool:
@@ -164,16 +174,10 @@ class StationSubentryFlow(ConfigSubentryFlow):
             if self._is_duplicate(unique_id):
                 errors["base"] = "already_configured"
             else:
-                title = self._build_title(schedule, stations, data)
-                if self._is_reconfigure:
-                    return self.async_update_and_abort(
-                        self._get_entry(),
-                        self._get_reconfigure_subentry(),
-                        title=title,
-                        data=data,
-                        unique_id=unique_id,
-                    )
-                return self.async_create_entry(title=title, data=data, unique_id=unique_id)
+                self._station_data = data
+                self._title = self._build_title(schedule, stations, data)
+                self._unique_id = unique_id
+                return await self.async_step_favorites()
 
         defaults = user_input or self._defaults()
         station = defaults.get(CONF_STATION)
@@ -212,6 +216,54 @@ class StationSubentryFlow(ConfigSubentryFlow):
             }
         )
         return self.async_show_form(step_id="station", data_schema=schema, errors=errors)
+
+    async def async_step_favorites(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Choose favorite trains, from those calling at the chosen station."""
+        entry = self._get_entry()
+        if entry.state is not ConfigEntryState.LOADED or not self._station_data:
+            return self.async_abort(reason="not_loaded")
+
+        if user_input is not None:
+            favorites = {train.strip() for train in user_input.get(CONF_FAVORITE_TRAINS, [])}
+            data = {
+                **self._station_data,
+                CONF_FAVORITE_TRAINS: sorted(favorites - {""}, key=_train_sort_key),
+            }
+            if self._is_reconfigure:
+                return self.async_update_and_abort(
+                    entry,
+                    self._get_reconfigure_subentry(),
+                    title=self._title,
+                    data=data,
+                    unique_id=self._unique_id,
+                )
+            return self.async_create_entry(title=self._title, data=data, unique_id=self._unique_id)
+
+        trains = await entry.runtime_data.async_get_station_trains(
+            query_from_subentry(self._station_data)
+        )
+        # Changing station can leave saved favorites that don't call here. With no list to
+        # compare against, keep them rather than losing the user's choices.
+        saved = self._defaults().get(CONF_FAVORITE_TRAINS, [])
+        defaults = [train for train in saved if train in trains] if trains else list(saved)
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_FAVORITE_TRAINS, default=defaults): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[
+                            SelectOptionDict(value=train, label=label)
+                            for train, label in trains.items()
+                        ],
+                        multiple=True,
+                        custom_value=True,
+                        mode=SelectSelectorMode.DROPDOWN,
+                    )
+                )
+            }
+        )
+        return self.async_show_form(step_id="favorites", data_schema=schema)
 
     def _is_duplicate(self, unique_id: str) -> bool:
         current = self._get_reconfigure_subentry() if self._is_reconfigure else None
