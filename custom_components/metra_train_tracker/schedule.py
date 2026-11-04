@@ -214,6 +214,8 @@ def _route_payload(
         "routeShortName": route.short_name,
         "routeLongName": route.long_name,
         "routeDesc": route.description,
+        "routeColor": route.color or None,
+        "routeTextColor": route.text_color or None,
         "alerts": alerts,
         "trips": trips,
     }

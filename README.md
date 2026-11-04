@@ -73,9 +73,13 @@ time_format: 12h
 | `entity` | Required | The station's **Next arrival** sensor |
 | `layout` | `list` | `list`, `compact`, or `next_train` for one large countdown |
 | `next_train_time` | `above` | Where the `next_train` countdown goes: `above`, `left` or `right`. Left and right use less height on wide cards |
+| `show_following` | `true` | Shows the `next_train` layout's **Then** line. Turn it off to save height |
 | `time_display` | `expected` | `expected` crosses out the original time when a train is late. Also `scheduled` or `both` |
 | `time_format` | `12h` | `12h` (9:04 AM), `24h` (09:04) or `raw` (09:04:00) |
 | `countdown` | `minutes` | `minutes`, `auto` for the last 30 minutes only, or `off` |
+| `countdown_colors` | `false` | Colors the countdown and delay: green when on time or under 3 minutes late, orange from 3 minutes late, red when significantly delayed. Trains with no live data stay uncolored |
+| `significant_delay_minutes` | `20` | Minutes late before a train turns red |
+| `line_color_badges` | `false` | Shows train numbers on each line's color. The colors come from Metra's published schedule data |
 | `alerts` | `summary` | `summary` is a chip you tap to open. Also `full` or `hidden` |
 | `favorites` | `highlight` | `highlight`, `mark` for a star, or `only` to list nothing else |
 | `pin_favorite` | `false` | Always show the next favorite, even if it's further out than the list |
@@ -92,6 +96,16 @@ Trains with live data show **On time** or how late they are. Trains without any 
 The `compact` and `next_train` layouts:
 
 ![The compact and next train layouts](https://raw.githubusercontent.com/adamjeffery/metra-ha/main/docs/images/card-layouts.png)
+
+The `next_train` layout with `next_train_time` set to `above`, `left` and `right`, then `left`
+with `show_following` off:
+
+![The next train layout with the time above, left and right, and without following trains](https://raw.githubusercontent.com/adamjeffery/metra-ha/main/docs/images/card-next-train.png)
+
+`countdown_colors` and `line_color_badges`, with trains 25, 3 and 2 minutes late, then on time, then
+with no live data yet. Line colors come from Metra's published schedule data:
+
+![Countdowns colored by delay, with train numbers on the line's color](https://raw.githubusercontent.com/adamjeffery/metra-ha/main/docs/images/card-colors.png)
 
 Service alerts with the summary chip tapped open:
 

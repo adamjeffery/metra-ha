@@ -10,9 +10,9 @@ from unittest.mock import patch
 import pytest
 from google.transit import gtfs_realtime_pb2
 
-ROUTES = """route_id, route_short_name, route_long_name, route_desc, agency_id, route_type
-UP-W, UP-W, Union Pacific West, , METRA, 2
-BNSF, BNSF, Burlington Northern, , METRA, 2
+ROUTES = """route_id, route_short_name, route_long_name, route_desc, agency_id, route_type, route_color, route_text_color
+UP-W, UP-W, Union Pacific West, , METRA, 2, FE8D81, 000000
+BNSF, BNSF, Burlington Northern, , METRA, 2, ,
 """
 STOPS = """stop_id, stop_name, stop_desc, stop_lat, stop_lon
 LOMBARD, Lombard, ,41.88,-88.01

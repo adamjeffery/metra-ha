@@ -8,9 +8,13 @@
  *   entity: sensor.up_w_lombard_inbound_next_arrival
  *   layout: list            # list, compact or next_train
  *   next_train_time: above  # above, left or right (next_train layout only)
+ *   show_following: true    # the "Then" line (next_train layout only)
  *   time_display: expected  # expected, scheduled or both
  *   time_format: 12h        # 12h, 24h or raw
  *   countdown: minutes      # minutes, auto or off
+ *   countdown_colors: false # on time green, delayed orange, significantly delayed red
+ *   significant_delay_minutes: 20
+ *   line_color_badges: false # train numbers on the line's color from the feed
  *   alerts: summary         # summary, full or hidden
  *   favorites: highlight    # mark, highlight or only
  *   pin_favorite: false     # always show the next favorite, even past the list
@@ -26,6 +30,8 @@ const AUTO_COUNTDOWN_MINUTES = 30;
 const LONG_COUNTDOWN_MINUTES = 90;
 const SCHEDULE_TIME_ZONE = "America/Chicago";
 const NEXT_TRAIN_FOLLOWING = 2;
+const DELAYED_MINUTES = 3; // Shorter delays are common, and hardly noticed on a platform.
+const HEX_COLOR = /^[0-9a-f]{6}$/i;
 
 const CHOICES = {
   layout: ["list", "compact", "next_train"],
@@ -40,9 +46,13 @@ const CHOICES = {
 const DEFAULTS = {
   layout: "list",
   next_train_time: "above",
+  show_following: true,
   time_display: "expected",
   time_format: "12h",
   countdown: "minutes",
+  countdown_colors: false,
+  significant_delay_minutes: 20,
+  line_color_badges: false,
   alerts: "summary",
   favorites: "highlight",
   pin_favorite: false,
@@ -106,6 +116,8 @@ const STYLES = `
   .scheduled-time { margin-left: 6px; font-size: 0.8rem; color: var(--mtt-muted); }
   .late { color: var(--mtt-late); font-weight: 600; }
   .good { color: var(--mtt-good); }
+  /* Plain orange is faint as text on a light card, so shift it toward the text color. */
+  .warn { color: var(--mtt-warn); color: color-mix(in srgb, var(--mtt-warn) 78%, var(--mtt-fg)); font-weight: 600; }
   .muted { color: var(--mtt-muted); }
 
   .row { display: grid; grid-template-columns: 72px 1fr auto; gap: 8px; align-items: center; padding: 9px 0; border-top: 1px solid var(--mtt-rule); }
@@ -131,7 +143,7 @@ const STYLES = `
   .compact-delay { font-size: 0.8rem; }
   .compact-headsign { margin-left: 8px; font-size: 0.8rem; }
 
-  .hero-time { font-size: 2.75rem; font-weight: 700; line-height: 1.1; white-space: nowrap; }
+  .hero-time { font-size: 2.25rem; font-weight: 700; line-height: 1.1; white-space: nowrap; }
   /* Side by side when there's room. The details wrap underneath on a narrow card. */
   .hero-left, .hero-right { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
   .hero-right { flex-direction: row-reverse; justify-content: space-between; }
@@ -178,6 +190,12 @@ function formatCountdown(minutes, short) {
   return minutes % 60 ? `in ${hours} hr ${rest} min` : `in ${hours} hr`;
 }
 
+/** A readable text color for a feed color with no text color of its own. */
+function contrastColor(hex) {
+  const [r, g, b] = [0, 2, 4].map((start) => parseInt(hex.slice(start, start + 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 140 ? "#000000" : "#ffffff";
+}
+
 /** The facts about a train's call at the station, independent of how they're shown. */
 function describeTrip(trip, format) {
   const stop = trip.stops?.[0] ?? {};
@@ -194,6 +212,8 @@ function describeTrip(trip, format) {
     train: trip.train,
     favorite: Boolean(trip.favorite),
     headsign: trip.tripHeadsign ?? "",
+    delay,
+    live: Boolean(live),
     delayed: delay !== 0,
     scheduled,
     expected,
@@ -386,7 +406,15 @@ class MetraTrainTrackerCard extends HTMLElement {
   }
 
   _renderTrainBadge(trip, parent) {
-    parent.append(el("span", "badge", `#${trip.train}`));
+    const badge = el("span", "badge", `#${trip.train}`);
+    const color = this._route?.routeColor;
+    // Feed data goes into a style, so only accept a plain hex color.
+    if (this._config.line_color_badges && HEX_COLOR.test(color ?? "")) {
+      const text = this._route.routeTextColor;
+      badge.style.background = `#${color}`;
+      badge.style.color = HEX_COLOR.test(text ?? "") ? `#${text}` : contrastColor(color);
+    }
+    parent.append(badge);
     if (trip.favorite && this._config.favorites !== "highlight") {
       const star = el("span", "star", "★");
       star.title = "Favorite train";
@@ -405,6 +433,24 @@ class MetraTrainTrackerCard extends HTMLElement {
       else if (display === "expected" && trip.delayed) time.append(el("span", "old-time", trip.scheduled));
     }
     return time;
+  }
+
+  /** The countdown color class, or "" if colors are off or there's no live data. */
+  _delayClass(trip) {
+    if (!this._config.countdown_colors) return "";
+    if (trip.delay >= (Number(this._config.significant_delay_minutes) || DEFAULTS.significant_delay_minutes)) {
+      return "late";
+    }
+    if (trip.delay >= DELAYED_MINUTES) return "warn";
+    return trip.live ? "good" : "";
+  }
+
+  /** The delay label matches the countdown when colors are on. */
+  _statusClass(trip) {
+    const color = this._delayClass(trip);
+    if (!color || trip.delay <= 0) return trip.status.className;
+    // A short delay counts as on time, but green "+2 min late" would read oddly.
+    return color === "good" ? "muted" : color;
   }
 
   _countdownText(trip, short) {
@@ -430,7 +476,7 @@ class MetraTrainTrackerCard extends HTMLElement {
     const details = el("div", "details");
     details.append(this._renderTime(trip));
     const status = el("div", "status");
-    status.append(el("span", trip.status.className, trip.status.text));
+    status.append(el("span", this._statusClass(trip), trip.status.text));
     const extras = [];
     if (this._showHeadsign()) extras.push(`to ${trip.headsign}`);
     if (this._config.show_origin && trip.origin) extras.push(trip.origin);
@@ -442,7 +488,7 @@ class MetraTrainTrackerCard extends HTMLElement {
     }
     details.append(status);
 
-    row.append(badge, details, el("div", "countdown", this._countdownText(trip, false)));
+    row.append(badge, details, el("div", `countdown ${this._delayClass(trip)}`, this._countdownText(trip, false)));
     return row;
   }
 
@@ -458,8 +504,8 @@ class MetraTrainTrackerCard extends HTMLElement {
     row.append(
       badge,
       timeCell,
-      el("span", `compact-delay ${trip.status.className}`, delay),
-      el("span", "countdown", this._countdownText(trip, true)),
+      el("span", `compact-delay ${this._statusClass(trip)}`, delay),
+      el("span", `countdown ${this._delayClass(trip)}`, this._countdownText(trip, true)),
     );
     return row;
   }
@@ -478,13 +524,13 @@ class MetraTrainTrackerCard extends HTMLElement {
     info.append(badge);
     if (big) info.append(el("span", "time", first.expected));
     if (first.delayed) info.append(el("span", "old-time", first.scheduled));
-    info.append(el("span", first.status.className, first.status.text));
+    info.append(el("span", this._statusClass(first), first.status.text));
     // Trains here go to different places, so each one has to say where.
     const showHeadsign = this._showHeadsign();
     if (showHeadsign) info.append(el("span", "muted", `to ${first.headsign}`));
     details.append(info);
     if (this._config.show_origin && first.origin) details.append(el("div", "status muted", first.origin));
-    if (following.length) {
+    if (this._config.show_following && following.length) {
       const text = following
         .map(
           (trip) =>
@@ -493,7 +539,7 @@ class MetraTrainTrackerCard extends HTMLElement {
         .join("  ·  ");
       details.append(el("div", "hero-then", `Then  ${text}`));
     }
-    hero.append(el("div", "hero-time", big || first.expected), details);
+    hero.append(el("div", `hero-time ${this._delayClass(first)}`, big || first.expected), details);
     return [hero];
   }
 
@@ -552,6 +598,9 @@ const EDITOR_SCHEMA = [
     ["auto", `Within ${AUTO_COUNTDOWN_MINUTES} minutes`],
     ["off", "Off"],
   ]),
+  { name: "countdown_colors", selector: { boolean: {} } },
+  { name: "significant_delay_minutes", selector: { number: { min: 1, max: 180, mode: "box", unit_of_measurement: "min" } } },
+  { name: "line_color_badges", selector: { boolean: {} } },
   select("alerts", [
     ["summary", "Summary you can tap to open"],
     ["full", "Always open"],
@@ -562,6 +611,7 @@ const EDITOR_SCHEMA = [
     ["mark", "Mark with a star"],
     ["only", "Show only favorites"],
   ]),
+  { name: "show_following", selector: { boolean: {} } },
   { name: "pin_favorite", selector: { boolean: {} } },
   { name: "max_trains", selector: { number: { min: 1, max: 10, mode: "box" } } },
   { name: "title", selector: { text: {} } },
@@ -573,9 +623,13 @@ const EDITOR_LABELS = {
   entity: "Station's Next arrival sensor",
   layout: "Layout",
   next_train_time: "Next train time position",
+  show_following: "Show following trains",
   time_display: "Time shown",
   time_format: "Time format",
   countdown: "Countdown",
+  countdown_colors: "Color the countdown by delay",
+  significant_delay_minutes: "Significantly delayed after",
+  line_color_badges: "Show train numbers in the line's color",
   alerts: "Service alerts",
   favorites: "Favorite trains",
   pin_favorite: "Always show next favorite",
@@ -587,6 +641,9 @@ const EDITOR_LABELS = {
 
 const EDITOR_HELPERS = {
   next_train_time: "Only used by the Next train layout. Left and right use less height on wide cards.",
+  show_following: "Only used by the Next train layout. Turn off to hide the Then line and save height.",
+  countdown_colors: `Green when on time, orange from ${DELAYED_MINUTES} minutes late, red when significantly delayed. Scheduled trains with no live data stay uncolored.`,
+  significant_delay_minutes: "Minutes late before a train turns red.",
   max_trains: "Up to the station's Trains to show setting. Leave blank to show them all.",
   title: "Leave blank to use the line and station.",
 };

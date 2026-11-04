@@ -23,6 +23,8 @@ class Route:
     short_name: str
     long_name: str
     description: str
+    color: str = ""
+    text_color: str = ""
 
 
 @dataclass(slots=True)
@@ -164,6 +166,8 @@ def parse_schedule(archive_bytes: bytes, keep_stops: Collection[str]) -> GtfsSch
                     row.get("route_short_name", ""),
                     row.get("route_long_name", ""),
                     row.get("route_desc", ""),
+                    row.get("route_color", ""),
+                    row.get("route_text_color", ""),
                 )
 
         for row in _read_rows(archive, "stops.txt"):

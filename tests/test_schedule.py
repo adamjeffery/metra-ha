@@ -608,3 +608,18 @@ def test_payload_omits_origin_when_train_starts_at_the_station() -> None:
     assert trip["train"] == "39"
     assert trip["originName"] is None
     assert trip["originDepartureTime"] is None
+
+
+def test_payload_includes_line_colors() -> None:
+    """The card can show train numbers in the line's color."""
+    route = build()["routes"][0]
+    assert route["routeColor"] == "FE8D81"
+    assert route["routeTextColor"] == "000000"
+
+
+def test_line_colors_are_none_when_the_feed_has_none() -> None:
+    """A line with no colors gives None, not an empty string."""
+    query = ScheduleQuery("BNSF", "AURORA", "inbound", 1)
+    route = build(query=query, now=datetime(2026, 11, 4, 8, 0, tzinfo=CENTRAL))["routes"][0]
+    assert route["routeColor"] is None
+    assert route["routeTextColor"] is None
