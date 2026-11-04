@@ -72,6 +72,7 @@ time_format: 12h
 | --- | --- | --- |
 | `entity` | Required | The station's **Next arrival** sensor |
 | `layout` | `list` | `list`, `compact`, or `next_train` for one large countdown |
+| `next_train_time` | `above` | Where the `next_train` countdown goes: `above`, `left` or `right`. Left and right use less height on wide cards |
 | `time_display` | `expected` | `expected` crosses out the original time when a train is late. Also `scheduled` or `both` |
 | `time_format` | `12h` | `12h` (9:04 AM), `24h` (09:04) or `raw` (09:04:00) |
 | `countdown` | `minutes` | `minutes`, `auto` for the last 30 minutes only, or `off` |
@@ -148,28 +149,4 @@ actions:
 ```bash
 pip install -r requirements_test.txt
 pytest
-```
-
-## Releasing
-
-HACS offers GitHub releases to users, so pushing to `main` doesn't send them anything.
-
-1. Update `version` in `custom_components/metra_train_tracker/manifest.json`, then commit
-   and push.
-2. Tag that commit with the same version, and push the tag:
-
-   ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
-
-The Release workflow checks that the tag matches the manifest, runs the validation and
-tests, and publishes the release only if they all pass. Tags like `v0.3.0b1` become
-pre-releases, which HACS only offers to people who have turned on beta versions.
-
-If a check fails, delete the tag, fix the problem, and tag again:
-
-```bash
-git tag -d v0.2.0
-git push origin :refs/tags/v0.2.0
 ```

@@ -7,6 +7,7 @@
  *   type: custom:metra-train-tracker-card
  *   entity: sensor.up_w_lombard_inbound_next_arrival
  *   layout: list            # list, compact or next_train
+ *   next_train_time: above  # above, left or right (next_train layout only)
  *   time_display: expected  # expected, scheduled or both
  *   time_format: 12h        # 12h, 24h or raw
  *   countdown: minutes      # minutes, auto or off
@@ -28,6 +29,7 @@ const NEXT_TRAIN_FOLLOWING = 2;
 
 const CHOICES = {
   layout: ["list", "compact", "next_train"],
+  next_train_time: ["above", "left", "right"],
   time_display: ["expected", "scheduled", "both"],
   time_format: ["12h", "24h", "raw"],
   countdown: ["minutes", "auto", "off"],
@@ -37,6 +39,7 @@ const CHOICES = {
 
 const DEFAULTS = {
   layout: "list",
+  next_train_time: "above",
   time_display: "expected",
   time_format: "12h",
   countdown: "minutes",
@@ -126,8 +129,14 @@ const STYLES = `
   .compact-row .time { font-size: inherit; }
   .compact-row .countdown { min-width: 44px; }
   .compact-delay { font-size: 0.8rem; }
+  .compact-headsign { margin-left: 8px; font-size: 0.8rem; }
 
-  .hero-time { font-size: 2.75rem; font-weight: 700; line-height: 1.1; }
+  .hero-time { font-size: 2.75rem; font-weight: 700; line-height: 1.1; white-space: nowrap; }
+  /* Side by side when there's room. The details wrap underneath on a narrow card. */
+  .hero-left, .hero-right { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
+  .hero-right { flex-direction: row-reverse; justify-content: space-between; }
+  .hero-left .hero-details, .hero-right .hero-details { flex: 1 1 240px; min-width: 0; }
+  .hero-left .hero-then, .hero-right .hero-then { margin-top: 6px; padding-top: 6px; }
   .hero-info { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 4px; }
   .hero-info .old-time { margin-left: 0; }
   .hero-then { margin-top: 10px; padding-top: 8px; font-size: 0.85rem; color: var(--mtt-muted); border-top: 1px solid var(--mtt-rule); }
@@ -247,7 +256,7 @@ class MetraTrainTrackerCard extends HTMLElement {
   }
 
   getCardSize() {
-    if (this._config?.layout === "next_train") return 3;
+    if (this._config?.layout === "next_train") return this._config.next_train_time === "above" ? 3 : 2;
     const trains = this._visibleTrips().trips.length;
     return this._config?.layout === "compact" ? 1 + trains : 2 + trains * 2;
   }
@@ -443,9 +452,12 @@ class MetraTrainTrackerCard extends HTMLElement {
     this._renderTrainBadge(trip, badge);
     const time = this._config.time_display === "scheduled" ? trip.scheduled : trip.expected;
     const delay = trip.delayed ? trip.status.text.replace(/ min (late|early)$/, "") : "";
+    const timeCell = el("span", "");
+    timeCell.append(el("span", "time", time));
+    if (this._showHeadsign()) timeCell.append(el("span", "compact-headsign muted", `to ${trip.headsign}`));
     row.append(
       badge,
-      el("span", "time", time),
+      timeCell,
       el("span", `compact-delay ${trip.status.className}`, delay),
       el("span", "countdown", this._countdownText(trip, true)),
     );
@@ -458,8 +470,8 @@ class MetraTrainTrackerCard extends HTMLElement {
     if (pin && facts.length) following.push(pin);
 
     const big = this._countdownText(first, false).replace(/^in /, "");
-    const hero = el("div", "");
-    hero.append(el("div", "hero-time", big || first.expected));
+    const hero = el("div", `hero-${this._config.next_train_time}`);
+    const details = el("div", "hero-details");
     const info = el("div", "hero-info");
     const badge = el("span", "");
     this._renderTrainBadge(first, badge);
@@ -467,14 +479,21 @@ class MetraTrainTrackerCard extends HTMLElement {
     if (big) info.append(el("span", "time", first.expected));
     if (first.delayed) info.append(el("span", "old-time", first.scheduled));
     info.append(el("span", first.status.className, first.status.text));
-    hero.append(info);
-    if (this._config.show_origin && first.origin) hero.append(el("div", "status muted", first.origin));
+    // Trains here go to different places, so each one has to say where.
+    const showHeadsign = this._showHeadsign();
+    if (showHeadsign) info.append(el("span", "muted", `to ${first.headsign}`));
+    details.append(info);
+    if (this._config.show_origin && first.origin) details.append(el("div", "status muted", first.origin));
     if (following.length) {
       const text = following
-        .map((trip) => `#${trip.train}${trip.favorite ? " ★" : ""} ${trip.expected}`)
+        .map(
+          (trip) =>
+            `#${trip.train}${trip.favorite ? " ★" : ""} ${trip.expected}${showHeadsign ? ` to ${trip.headsign}` : ""}`,
+        )
         .join("  ·  ");
-      hero.append(el("div", "hero-then", `Then  ${text}`));
+      details.append(el("div", "hero-then", `Then  ${text}`));
     }
+    hero.append(el("div", "hero-time", big || first.expected), details);
     return [hero];
   }
 
@@ -513,6 +532,11 @@ const EDITOR_SCHEMA = [
     ["compact", "Compact"],
     ["next_train", "Next train"],
   ]),
+  select("next_train_time", [
+    ["above", "Above the details"],
+    ["left", "Left of the details"],
+    ["right", "Right of the details"],
+  ]),
   select("time_display", [
     ["expected", "Expected, with the original time crossed out if late"],
     ["scheduled", "Scheduled"],
@@ -548,6 +572,7 @@ const EDITOR_SCHEMA = [
 const EDITOR_LABELS = {
   entity: "Station's Next arrival sensor",
   layout: "Layout",
+  next_train_time: "Next train time position",
   time_display: "Time shown",
   time_format: "Time format",
   countdown: "Countdown",
@@ -561,6 +586,7 @@ const EDITOR_LABELS = {
 };
 
 const EDITOR_HELPERS = {
+  next_train_time: "Only used by the Next train layout. Left and right use less height on wide cards.",
   max_trains: "Up to the station's Trains to show setting. Leave blank to show them all.",
   title: "Leave blank to use the line and station.",
 };
