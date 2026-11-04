@@ -16,7 +16,7 @@ For each station you add:
 | Next train delay | Minutes late, or negative if early |
 | Service alert | On when the line has a service alert, with the text as an attribute |
 
-You also get the **Metra Schedule** dashboard card, with no separate install.
+You also get the **Metra Train Tracker** dashboard card, with no separate install.
 
 ## Requirements
 
@@ -53,11 +53,11 @@ To change a station later, use the ⋮ menu next to it on the integration page.
 
 ## Add the card
 
-Edit a dashboard, add a card and search for **Metra Schedule**. You can also add it
+Edit a dashboard, add a card and search for **Metra Train Tracker**. You can also add it
 with YAML:
 
 ```yaml
-type: custom:metra-card
+type: custom:train-tracker-card
 entity: sensor.up_w_lombard_inbound_next_arrival
 time_format: 12h
 ```

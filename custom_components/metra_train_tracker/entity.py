@@ -32,7 +32,7 @@ class MetraEntity(CoordinatorEntity[MetraCoordinator]):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, subentry.subentry_id)},
             name=subentry.title,
-            manufacturer="Metra",
+            manufacturer="Unofficial community project",
             entry_type=DeviceEntryType.SERVICE,
         )
 

@@ -18,8 +18,8 @@ from .coordinator import MetraConfigEntry, MetraCoordinator, schedule_cache_path
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-CARD_URL = "/metra_train_tracker/metra-card.js"
-CARD_PATH = Path(__file__).parent / "frontend" / "metra-card.js"
+CARD_URL = "/metra_train_tracker/train-tracker-card.js"
+CARD_PATH = Path(__file__).parent / "frontend" / "train-tracker-card.js"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
