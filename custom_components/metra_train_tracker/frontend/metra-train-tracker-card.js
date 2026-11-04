@@ -3,7 +3,7 @@
  *
  * Displays the schedule held by a station's "Next arrival" sensor.
  *
- *   type: custom:train-tracker-card
+ *   type: custom:metra-train-tracker-card
  *   entity: sensor.up_w_lombard_inbound_next_arrival
  *   time_format: 12h   # optional: 12h (default), 24h or raw
  */
@@ -114,13 +114,13 @@ class MetraCard extends HTMLElement {
   }
 
   static getConfigElement() {
-    return document.createElement("train-tracker-card-editor");
+    return document.createElement("metra-train-tracker-card-editor");
   }
 
   setConfig(config) {
-    if (!config) throw new Error("train-tracker-card: invalid configuration");
+    if (!config) throw new Error("metra-train-tracker-card: invalid configuration");
     if (config.time_format && !TIME_FORMATS.includes(config.time_format)) {
-      throw new Error(`train-tracker-card: 'time_format' must be one of ${TIME_FORMATS.join(", ")}`);
+      throw new Error(`metra-train-tracker-card: 'time_format' must be one of ${TIME_FORMATS.join(", ")}`);
     }
     this._config = { time_format: "12h", ...config };
     this._stateObj = this._hass?.states[config.entity];
@@ -325,13 +325,13 @@ class MetraCardEditor extends HTMLElement {
 // that. So wait for the app, whose definition comes after the replacement.
 customElements.whenDefined("home-assistant").then(() => {
   // An older manually installed copy may already have claimed these names.
-  if (!customElements.get("train-tracker-card")) customElements.define("train-tracker-card", MetraCard);
-  if (!customElements.get("train-tracker-card-editor")) customElements.define("train-tracker-card-editor", MetraCardEditor);
+  if (!customElements.get("metra-train-tracker-card")) customElements.define("metra-train-tracker-card", MetraCard);
+  if (!customElements.get("metra-train-tracker-card-editor")) customElements.define("metra-train-tracker-card-editor", MetraCardEditor);
 });
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "train-tracker-card",
+  type: "metra-train-tracker-card",
   name: "Metra Train Tracker",
   description: "Upcoming Metra trains, delays and alerts for a station.",
   documentationURL: "https://github.com/adamjeffery/metra-ha",

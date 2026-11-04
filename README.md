@@ -57,7 +57,7 @@ Edit a dashboard, add a card and search for **Metra Train Tracker**. You can als
 with YAML:
 
 ```yaml
-type: custom:train-tracker-card
+type: custom:metra-train-tracker-card
 entity: sensor.up_w_lombard_inbound_next_arrival
 time_format: 12h
 ```

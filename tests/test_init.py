@@ -485,14 +485,14 @@ async def test_card_is_served(
     with patch("custom_components.metra_train_tracker.add_extra_js_url") as add_js:
         await setup_entry(hass, aioclient_mock)
     url = add_js.call_args.args[1]
-    assert url.startswith("/metra_train_tracker/train-tracker-card.js?v=")
+    assert url.startswith("/metra_train_tracker/metra-train-tracker-card.js?v=")
 
     client = await hass_client_no_auth()
     response = await client.get(url)
     assert response.status == 200
     text = await response.text()
-    assert 'customElements.define("train-tracker-card"' in text
+    assert 'customElements.define("metra-train-tracker-card"' in text
     # Must not register until the frontend's final registry exists: see the card's comment.
     assert text.index('whenDefined("home-assistant")') < text.index(
-        'customElements.define("train-tracker-card"'
+        'customElements.define("metra-train-tracker-card"'
     )
