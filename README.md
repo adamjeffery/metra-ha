@@ -5,6 +5,10 @@ stations in Home Assistant, with a dashboard card included.
 
 This is an unofficial community project. It isn't affiliated with or endorsed by Metra.
 
+![The train list in light and dark themes, with a late train and a highlighted favorite](https://raw.githubusercontent.com/adamjeffery/metra-ha/main/docs/images/card-list.png)
+
+_Screenshots use sample data._
+
 ## What you get
 
 For each station you add:
@@ -82,6 +86,21 @@ time_format: 12h
 Trains with live data show **On time** or how late they are. Trains without any yet show
 **Scheduled**.
 
+### Examples
+
+The `compact` and `next_train` layouts:
+
+![The compact and next train layouts](https://raw.githubusercontent.com/adamjeffery/metra-ha/main/docs/images/card-layouts.png)
+
+Service alerts with the summary chip tapped open:
+
+![Service alerts opened above the train list](https://raw.githubusercontent.com/adamjeffery/metra-ha/main/docs/images/card-alerts.png)
+
+On the left, `show_origin`, `time_display: both` and `favorites: mark`. On the right, a custom
+`title` with `pin_favorite`:
+
+![Cards showing origin times, and a pinned next favorite](https://raw.githubusercontent.com/adamjeffery/metra-ha/main/docs/images/card-options.png)
+
 ## Example automation
 
 Get a notification when one of your favorite trains is running late:
@@ -121,7 +140,8 @@ actions:
 | A repair asks you to re-authenticate | Metra rejected your API key. Enter a new one. |
 | Entities are unavailable | Metra's realtime feed has been unreachable for over an hour. Check the logs. |
 | The card says `Stale: data from…` | The data is over 5 minutes old, usually because Home Assistant can't reach Metra. |
-| Custom element doesn't exist | Hard-refresh your browser (Ctrl+Shift+R). |
+| Custom element doesn't exist in a browser | Hard-refresh the page (Ctrl+Shift+R). |
+| Custom element doesn't exist in the Companion app | Closing the app isn't enough. Use **Reset frontend cache** in the app's settings, then reopen it. |
 
 ## Development
 
