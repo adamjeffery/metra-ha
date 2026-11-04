@@ -420,7 +420,10 @@ async def test_add_station_creates_entities(
     assert result["step_id"] == "favorites"
     # A new station's trains aren't in the loaded schedule, so this reads the cached copy.
     options = result["data_schema"].schema[CONF_FAVORITE_TRAINS].config["options"]
-    assert options[1] == {"value": "38", "label": "38 – 9:04 AM to Chicago OTC (Weekdays)"}
+    assert options[1] == {
+        "value": "38",
+        "label": "38 – Lombard 9:04 AM, leaves Wheaton 8:25 AM, to Chicago OTC (Weekdays)",
+    }
 
     result = await hass.config_entries.subentries.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()

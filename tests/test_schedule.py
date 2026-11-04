@@ -433,11 +433,11 @@ def test_trains_at_station_lists_current_trains_by_time() -> None:
     schedule = parse_schedule(build_archive(), STOPS)
     trains_found = trains_at_station(schedule, INBOUND, NOW.date())
     assert trains_found == {
-        "99": "99 – 1:30 AM to Chicago OTC (Weekdays)",
-        "38": "38 – 9:04 AM to Chicago OTC (Weekdays)",
-        "42": "42 – 10:04 AM to Chicago OTC (Weekdays)",
+        "99": "99 – Lombard 1:30 AM, leaves Wheaton 12:50 AM, to Chicago OTC (Weekdays)",
+        "38": "38 – Lombard 9:04 AM, leaves Wheaton 8:25 AM, to Chicago OTC (Weekdays)",
+        "42": "42 – Lombard 10:04 AM, leaves Wheaton 9:30 AM, to Chicago OTC (Weekdays)",
         # The fixture's holiday swap adds weekend service on a Thursday, which isn't regular.
-        "50": "50 – 12:00 PM to Chicago OTC (Sat, Sun)",
+        "50": "50 – Lombard 12:00 PM to Chicago OTC (Sat, Sun)",
     }
     assert list(trains_found) == ["99", "38", "42", "50"]
 
@@ -511,7 +511,7 @@ def test_picker_shows_days_a_train_runs(weekdays: str, expected: str) -> None:
     label = picker_label(
         f"S,{weekdays},20200101,20301231\n", "UP-W,S,UP-W_UW1_V1_A,Chicago OTC,,S,1\n"
     )
-    assert label == f"1 – 9:00 AM to Chicago OTC ({expected})"
+    assert label == f"1 – Lombard 9:00 AM to Chicago OTC ({expected})"
 
 
 def test_picker_days_combine_across_services() -> None:
@@ -550,4 +550,30 @@ def test_picker_omits_days_when_unknown() -> None:
     label = picker_label(
         "A,1,1,1,1,1,0,0,20200101,20301231\n", "UP-W,NONE,UP-W_UW1_V1_A,Chicago OTC,,S,1\n"
     )
-    assert label == "1 – 9:00 AM to Chicago OTC"
+    assert label == "1 – Lombard 9:00 AM to Chicago OTC"
+
+
+def test_picker_uses_first_stop_as_origin_regardless_of_file_order() -> None:
+    """The origin comes from stop_sequence, and uses its departure time."""
+    archive = build_archive(
+        trips="route_id,service_id,trip_id,trip_headsign,block_id,shape_id,direction_id\n"
+        "UP-W,WK,UP-W_UW45_V1_A,Elburn,,S,0\n",
+        stop_times="trip_id,arrival_time,departure_time,stop_id,stop_sequence\n"
+        "UP-W_UW45_V1_A,17:12:00,17:13:00,LOMBARD,5\n"
+        "UP-W_UW45_V1_A,18:00:00,18:00:00,AURORA,9\n"
+        "UP-W_UW45_V1_A,16:30:00,16:35:00,OTC,1\n",
+    )
+    schedule = parse_schedule(archive, STOPS)
+    query = ScheduleQuery("UP-W", "LOMBARD", "outbound", 0)
+    assert trains_at_station(schedule, query, NOW.date()) == {
+        "45": "45 – Lombard 5:12 PM, leaves Chicago OTC 4:35 PM, to Elburn (Weekdays)"
+    }
+
+
+def test_picker_omits_origin_when_train_starts_at_the_station() -> None:
+    """A train starting at the chosen station doesn't repeat itself."""
+    schedule = parse_schedule(build_archive(), {"WHEATON"})
+    query = ScheduleQuery("UP-W", "WHEATON", "inbound", 1)
+    assert trains_at_station(schedule, query, NOW.date())["38"] == (
+        "38 – Wheaton 8:25 AM to Chicago OTC (Weekdays)"
+    )

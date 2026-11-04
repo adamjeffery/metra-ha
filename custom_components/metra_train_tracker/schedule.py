@@ -8,7 +8,7 @@ from math import ceil
 from typing import Any
 
 from .const import CENTRAL
-from .gtfs import GtfsSchedule, Route, StopTime
+from .gtfs import GtfsSchedule, Route, StopTime, Trip
 
 # A realtime time further than this from the schedule belongs to another day's run
 # of the same trip ID, such as tonight's 24:30 train seen while last night's runs.
@@ -74,7 +74,8 @@ def trains_at_station(schedule: GtfsSchedule, query: ScheduleQuery, today: date)
 
     Trains are identified by number because trip IDs change between schedule versions.
     """
-    details: dict[str, tuple[int, str, str]] = {}
+    station_name = schedule.stop_names.get(query.stop_id, query.stop_id)
+    details: dict[str, tuple[int, str]] = {}
     regular_days: dict[str, set[int]] = {}
     one_off_days: dict[str, set[int]] = {}
     for stop_time in schedule.stop_times_by_stop.get(query.stop_id.casefold(), ()):
@@ -91,10 +92,10 @@ def trains_at_station(schedule: GtfsSchedule, query: ScheduleQuery, today: date)
             continue
         # Sorted and labelled by clock time, so a 25:30 train comes first as 1:30 AM.
         clock = seconds % 86400
-        hours, minutes = clock // 3600, clock % 3600 // 60
-        time_text = f"{hours % 12 or 12}:{minutes:02d} {'AM' if hours < 12 else 'PM'}"
         if train not in details or clock < details[train][0]:
-            details[train] = (clock, time_text, trip.headsign)
+            stop_text = f"{station_name} {_format_clock(seconds)}"
+            origin = _origin_text(schedule, trip, query.stop_id)
+            details[train] = (clock, f"{stop_text}{origin} to {trip.headsign}")
 
         calendar = schedule.calendars.get(trip.service_id.casefold())
         if calendar is not None and calendar.end_date >= today:
@@ -104,12 +105,30 @@ def trains_at_station(schedule: GtfsSchedule, query: ScheduleQuery, today: date)
             )
 
     labels = {}
-    for train, (_, time_text, headsign) in sorted(details.items(), key=lambda item: item[1][0]):
+    for train, (_, description) in sorted(details.items(), key=lambda item: item[1][0]):
         # A one-day special says little about when a regular train runs.
         days_text = _format_days(regular_days.get(train) or one_off_days.get(train) or set())
         suffix = f" ({days_text})" if days_text else ""
-        labels[train] = f"{train} – {time_text} to {headsign}{suffix}"
+        labels[train] = f"{train} – {description}{suffix}"
     return labels
+
+
+def _origin_text(schedule: GtfsSchedule, trip: Trip, stop_id: str) -> str:
+    """Describe where a train starts, unless it starts at the station being listed."""
+    origin = trip.origin_stop_id
+    if origin is None or trip.origin_departure_seconds is None:
+        return ""
+    if origin.casefold() == stop_id.casefold():
+        return ""
+    name = schedule.stop_names.get(origin, origin)
+    return f", leaves {name} {_format_clock(trip.origin_departure_seconds)},"
+
+
+def _format_clock(seconds: int) -> str:
+    """Format seconds past service midnight as a 12-hour time."""
+    clock = seconds % 86400
+    hours, minutes = clock // 3600, clock % 3600 // 60
+    return f"{hours % 12 or 12}:{minutes:02d} {'AM' if hours < 12 else 'PM'}"
 
 
 def _format_days(days: set[int]) -> str:

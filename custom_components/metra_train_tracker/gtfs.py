@@ -36,6 +36,8 @@ class Trip:
     direction_id: int
     start_seconds: int | None = None
     end_seconds: int | None = None
+    origin_stop_id: str | None = None
+    origin_departure_seconds: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,6 +244,8 @@ def _read_stop_times(
         if start is not None and sequence < first_sequence.get(trip.trip_id, sequence + 1):
             first_sequence[trip.trip_id] = sequence
             trip.start_seconds = start
+            trip.origin_stop_id = stop_id
+            trip.origin_departure_seconds = departure if departure is not None else arrival
 
         end = departure if departure is not None else arrival
         if end is not None and sequence > last_sequence.get(trip.trip_id, sequence - 1):
