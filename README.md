@@ -72,6 +72,7 @@ time_format: 12h
 | --- | --- | --- |
 | `entity` | Required | The station's **Next arrival** sensor |
 | `layout` | `list` | `list`, `compact`, or `next_train` for one large countdown |
+| `text_size` | `normal` | `normal`, `large` or `extra_large`, for wall displays and smaller screens read from a distance |
 | `next_train_time` | `above` | Where the `next_train` countdown goes: `above`, `left` or `right`. Left and right use less height on wide cards |
 | `show_following` | `true` | Shows the `next_train` layout's **Then** line. Turn it off to save height |
 | `time_display` | `expected` | `expected` crosses out the original time when a train is late. Also `scheduled` or `both` |
@@ -106,6 +107,15 @@ with `show_following` off:
 with no live data yet. Line colors come from Metra's published schedule data:
 
 ![Countdowns colored by delay, with train numbers on the line's color](https://raw.githubusercontent.com/adamjeffery/metra-ha/main/docs/images/card-colors.png)
+
+`text_size` set to `large` and `extra_large` on narrow cards:
+
+![The list layout at large and extra large text sizes](https://raw.githubusercontent.com/adamjeffery/metra-ha/main/docs/images/card-text-sizes.png)
+
+Larger text on a wide card, for wall displays and small tablets. The list and compact layouts at
+`large`, and `next_train` at `extra_large` with the time on the left:
+
+![Wide cards with larger text in each layout](https://raw.githubusercontent.com/adamjeffery/metra-ha/main/docs/images/card-text-wide.png)
 
 Service alerts with the summary chip tapped open:
 

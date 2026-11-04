@@ -7,6 +7,7 @@
  *   type: custom:metra-train-tracker-card
  *   entity: sensor.up_w_lombard_inbound_next_arrival
  *   layout: list            # list, compact or next_train
+ *   text_size: normal       # normal, large or extra_large
  *   next_train_time: above  # above, left or right (next_train layout only)
  *   show_following: true    # the "Then" line (next_train layout only)
  *   time_display: expected  # expected, scheduled or both
@@ -31,10 +32,12 @@ const LONG_COUNTDOWN_MINUTES = 90;
 const SCHEDULE_TIME_ZONE = "America/Chicago";
 const NEXT_TRAIN_FOLLOWING = 2;
 const DELAYED_MINUTES = 3; // Shorter delays are common, and hardly noticed on a platform.
+const TEXT_SCALES = { normal: 1, large: 1.35, extra_large: 1.7 };
 const HEX_COLOR = /^[0-9a-f]{6}$/i;
 
 const CHOICES = {
   layout: ["list", "compact", "next_train"],
+  text_size: ["normal", "large", "extra_large"],
   next_train_time: ["above", "left", "right"],
   time_display: ["expected", "scheduled", "both"],
   time_format: ["12h", "24h", "raw"],
@@ -45,6 +48,7 @@ const CHOICES = {
 
 const DEFAULTS = {
   layout: "list",
+  text_size: "normal",
   next_train_time: "above",
   show_following: true,
   time_display: "expected",
@@ -69,6 +73,7 @@ const STYLES = `
     --mtt-late: var(--error-color, #db4437);
     --mtt-good: var(--success-color, #43a047);
     --mtt-warn: var(--warning-color, #ffa600);
+    --mtt-scale: 1;
   }
   ha-card {
     display: flex;
@@ -77,12 +82,13 @@ const STYLES = `
     box-sizing: border-box;
     padding: 14px 16px;
     color: var(--mtt-fg);
+    font-size: calc(var(--ha-font-size-m, 14px) * var(--mtt-scale));
     overflow: hidden;
   }
   .header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
   .header-text { min-width: 0; }
-  .title { font-size: 1.15rem; font-weight: 600; line-height: 1.25; }
-  .subtitle { font-size: 0.8rem; color: var(--mtt-muted); }
+  .title { font-size: calc(1.15rem * var(--mtt-scale)); font-weight: 600; line-height: 1.25; }
+  .subtitle { font-size: calc(0.8rem * var(--mtt-scale)); color: var(--mtt-muted); }
   .chip-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
   .chip {
     flex: 0 0 auto;
@@ -90,7 +96,7 @@ const STYLES = `
     border-radius: 999px;
     padding: 4px 10px;
     font: inherit;
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--mtt-scale));
     font-weight: 600;
     color: var(--mtt-warn);
     background: color-mix(in srgb, var(--mtt-warn) 16%, transparent);
@@ -98,33 +104,36 @@ const STYLES = `
     white-space: nowrap;
   }
   .alert { border-left: 4px solid var(--mtt-warn); padding: 2px 0 2px 9px; margin: 6px 0 8px; }
-  .alert-header { font-size: 0.9rem; font-weight: 600; }
-  .alert-description { font-size: 0.8rem; line-height: 1.35; color: var(--mtt-muted); white-space: pre-line; }
+  .alert-header { font-size: calc(0.9rem * var(--mtt-scale)); font-weight: 600; }
+  .alert-description { font-size: calc(0.8rem * var(--mtt-scale)); line-height: 1.35; color: var(--mtt-muted); white-space: pre-line; }
 
   .badge {
     display: inline-block;
     padding: 1px 6px;
     border-radius: 4px;
-    font-size: 0.875rem;
+    font-size: calc(0.875rem * var(--mtt-scale));
     font-weight: 700;
     white-space: nowrap;
     color: var(--mtt-bg);
     background: var(--mtt-fg);
   }
   .star { margin-left: 4px; color: var(--mtt-warn); }
-  .old-time { margin-left: 6px; font-size: 0.8rem; color: var(--mtt-muted); text-decoration: line-through; }
-  .scheduled-time { margin-left: 6px; font-size: 0.8rem; color: var(--mtt-muted); }
+  .old-time { margin-left: 6px; font-size: calc(0.8rem * var(--mtt-scale)); color: var(--mtt-muted); text-decoration: line-through; }
+  .scheduled-time { margin-left: 6px; font-size: calc(0.8rem * var(--mtt-scale)); color: var(--mtt-muted); }
   .late { color: var(--mtt-late); font-weight: 600; }
   .good { color: var(--mtt-good); }
   /* Plain orange is faint as text on a light card, so shift it toward the text color. */
   .warn { color: var(--mtt-warn); color: color-mix(in srgb, var(--mtt-warn) 78%, var(--mtt-fg)); font-weight: 600; }
   .muted { color: var(--mtt-muted); }
 
-  .row { display: grid; grid-template-columns: 72px 1fr auto; gap: 8px; align-items: center; padding: 9px 0; border-top: 1px solid var(--mtt-rule); }
+  .row { display: grid; grid-template-columns: calc(72px + (var(--mtt-scale) - 1) * 50px) 1fr auto; gap: 8px; align-items: center; padding: calc(9px * var(--mtt-scale)) 0; border-top: 1px solid var(--mtt-rule); }
   .row:first-child { border-top: 0; }
-  .time { font-size: 1.05rem; font-weight: 600; }
+  .time-line { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; }
+  .time-line .old-time, .time-line .scheduled-time { margin-left: 0; }
+  .time, .old-time, .scheduled-time { white-space: nowrap; }
+  .time { font-size: calc(1.05rem * var(--mtt-scale)); font-weight: 600; }
   .details { min-width: 0; }
-  .status { font-size: 0.8rem; margin-top: 1px; }
+  .status { font-size: calc(0.8rem * var(--mtt-scale)); margin-top: 1px; }
   .countdown { font-weight: 600; text-align: right; white-space: nowrap; }
   .row.highlight, .compact-row.highlight {
     margin: 0 -16px;
@@ -133,28 +142,28 @@ const STYLES = `
     border-left: 3px solid var(--mtt-warn);
     background: color-mix(in srgb, var(--mtt-warn) 14%, transparent);
   }
-  .pin-label { padding: 8px 0 2px; font-size: 0.7rem; color: var(--mtt-muted); border-top: 1px dashed var(--mtt-rule); }
+  .pin-label { padding: 8px 0 2px; font-size: calc(0.7rem * var(--mtt-scale)); color: var(--mtt-muted); border-top: 1px dashed var(--mtt-rule); }
   .pin-label + .row { border-top: 0; }
 
-  .compact-row { display: grid; grid-template-columns: 64px 1fr auto auto; gap: 8px; align-items: center; padding: 4px 0; font-size: 0.875rem; }
-  .compact-row .badge { font-size: 0.8rem; }
+  .compact-row { display: grid; grid-template-columns: calc(64px + (var(--mtt-scale) - 1) * 50px) 1fr auto auto; gap: 8px; align-items: center; padding: calc(4px * var(--mtt-scale)) 0; font-size: calc(0.875rem * var(--mtt-scale)); }
+  .compact-row .badge { font-size: calc(0.8rem * var(--mtt-scale)); }
   .compact-row .time { font-size: inherit; }
-  .compact-row .countdown { min-width: 44px; }
-  .compact-delay { font-size: 0.8rem; }
-  .compact-headsign { margin-left: 8px; font-size: 0.8rem; }
+  .compact-row .countdown { min-width: calc(44px * var(--mtt-scale)); }
+  .compact-delay { font-size: calc(0.8rem * var(--mtt-scale)); }
+  .compact-headsign { margin-left: 8px; font-size: calc(0.8rem * var(--mtt-scale)); }
 
-  .hero-time { font-size: 2.25rem; font-weight: 700; line-height: 1.1; white-space: nowrap; }
+  .hero-time { font-size: calc(2.25rem * var(--mtt-scale)); font-weight: 700; line-height: 1.1; white-space: nowrap; }
   /* Side by side when there's room. The details wrap underneath on a narrow card. */
   .hero-left, .hero-right { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
   .hero-right { flex-direction: row-reverse; justify-content: space-between; }
-  .hero-left .hero-details, .hero-right .hero-details { flex: 1 1 240px; min-width: 0; }
+  .hero-left .hero-details, .hero-right .hero-details { flex: 1 1 calc(200px * var(--mtt-scale)); min-width: 0; }
   .hero-left .hero-then, .hero-right .hero-then { margin-top: 6px; padding-top: 6px; }
   .hero-info { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 4px; }
   .hero-info .old-time { margin-left: 0; }
-  .hero-then { margin-top: 10px; padding-top: 8px; font-size: 0.85rem; color: var(--mtt-muted); border-top: 1px solid var(--mtt-rule); }
+  .hero-then { margin-top: 10px; padding-top: 8px; font-size: calc(0.85rem * var(--mtt-scale)); color: var(--mtt-muted); border-top: 1px solid var(--mtt-rule); }
 
   .message { padding: 8px 0; color: var(--mtt-muted); }
-  .stale { margin-top: 8px; font-size: 0.8rem; font-weight: 600; color: var(--mtt-late); }
+  .stale { margin-top: 8px; font-size: calc(0.8rem * var(--mtt-scale)); font-weight: 600; color: var(--mtt-late); }
 `;
 
 /** Build an element. Text goes through textContent so feed data can't inject markup. */
@@ -180,10 +189,15 @@ function minutesUntil(iso) {
   return Number.isNaN(time) ? null : Math.floor((time - Date.now()) / 60000);
 }
 
-function formatCountdown(minutes, short) {
+/** Style is "full" (in 2 hr 35 min), "medium" (2h 35, 27 min) or "short" (2h 35, 27m). */
+function formatCountdown(minutes, style) {
   if (minutes === null) return "";
   if (minutes <= 0) return "Due";
-  if (minutes < LONG_COUNTDOWN_MINUTES) return short ? `${minutes}m` : `in ${minutes} min`;
+  const short = style !== "full";
+  if (minutes < LONG_COUNTDOWN_MINUTES) {
+    if (style === "short") return `${minutes}m`;
+    return short ? `${minutes} min` : `in ${minutes} min`;
+  }
   const hours = Math.floor(minutes / 60);
   const rest = String(minutes % 60);
   if (short) return `${hours}h ${rest.padStart(2, "0")}`;
@@ -307,6 +321,7 @@ class MetraTrainTrackerCard extends HTMLElement {
   _render() {
     if (!this._card || !this._config || !this._hass) return;
     this._rendered = true;
+    this._card.style.setProperty("--mtt-scale", TEXT_SCALES[this._config.text_size]);
     this._card.replaceChildren(...this._renderContent());
   }
 
@@ -423,7 +438,7 @@ class MetraTrainTrackerCard extends HTMLElement {
   }
 
   _renderTime(trip) {
-    const time = el("div", "");
+    const time = el("div", "time-line");
     const display = this._config.time_display;
     if (display === "scheduled") {
       time.append(el("span", "time", trip.scheduled));
@@ -453,11 +468,11 @@ class MetraTrainTrackerCard extends HTMLElement {
     return color === "good" ? "muted" : color;
   }
 
-  _countdownText(trip, short) {
+  _countdownText(trip, style) {
     const mode = this._config.countdown;
     if (mode === "off") return "";
     if (mode === "auto" && (trip.minutes === null || trip.minutes > AUTO_COUNTDOWN_MINUTES)) return "";
-    return formatCountdown(trip.minutes, short);
+    return formatCountdown(trip.minutes, style);
   }
 
   _isHighlighted(trip) {
@@ -488,7 +503,7 @@ class MetraTrainTrackerCard extends HTMLElement {
     }
     details.append(status);
 
-    row.append(badge, details, el("div", `countdown ${this._delayClass(trip)}`, this._countdownText(trip, false)));
+    row.append(badge, details, el("div", `countdown ${this._delayClass(trip)}`, this._countdownText(trip, this._config.text_size === "normal" ? "full" : "medium")));
     return row;
   }
 
@@ -505,7 +520,7 @@ class MetraTrainTrackerCard extends HTMLElement {
       badge,
       timeCell,
       el("span", `compact-delay ${this._statusClass(trip)}`, delay),
-      el("span", `countdown ${this._delayClass(trip)}`, this._countdownText(trip, true)),
+      el("span", `countdown ${this._delayClass(trip)}`, this._countdownText(trip, "short")),
     );
     return row;
   }
@@ -515,7 +530,7 @@ class MetraTrainTrackerCard extends HTMLElement {
     const following = others.slice(0, NEXT_TRAIN_FOLLOWING);
     if (pin && facts.length) following.push(pin);
 
-    const big = this._countdownText(first, false).replace(/^in /, "");
+    const big = this._countdownText(first, "full").replace(/^in /, "");
     const hero = el("div", `hero-${this._config.next_train_time}`);
     const details = el("div", "hero-details");
     const info = el("div", "hero-info");
@@ -578,6 +593,11 @@ const EDITOR_SCHEMA = [
     ["compact", "Compact"],
     ["next_train", "Next train"],
   ]),
+  select("text_size", [
+    ["normal", "Normal"],
+    ["large", "Large"],
+    ["extra_large", "Extra large"],
+  ]),
   select("next_train_time", [
     ["above", "Above the details"],
     ["left", "Left of the details"],
@@ -622,6 +642,7 @@ const EDITOR_SCHEMA = [
 const EDITOR_LABELS = {
   entity: "Station's Next arrival sensor",
   layout: "Layout",
+  text_size: "Text size",
   next_train_time: "Next train time position",
   show_following: "Show following trains",
   time_display: "Time shown",
@@ -640,6 +661,7 @@ const EDITOR_LABELS = {
 };
 
 const EDITOR_HELPERS = {
+  text_size: "Larger text is easier to read from a distance, and works with every layout.",
   next_train_time: "Only used by the Next train layout. Left and right use less height on wide cards.",
   show_following: "Only used by the Next train layout. Turn off to hide the Then line and save height.",
   countdown_colors: `Green when on time, orange from ${DELAYED_MINUTES} minutes late, red when significantly delayed. Scheduled trains with no live data stay uncolored.`,
