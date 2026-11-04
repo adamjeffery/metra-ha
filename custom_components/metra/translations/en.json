@@ -1,0 +1,89 @@
+{
+  "config": {
+    "abort": {
+      "reauth_successful": "Re-authentication was successful",
+      "single_instance_allowed": "Already configured. Only a single configuration possible."
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication"
+    },
+    "step": {
+      "reauth_confirm": {
+        "data": {
+          "api_key": "API key"
+        },
+        "description": "Metra rejected the saved API key. Enter a new one.",
+        "title": "Update Metra API key"
+      },
+      "user": {
+        "data": {
+          "api_key": "API key"
+        },
+        "description": "Enter your Metra GTFS API key. After setup, use Add station on the integration page to choose your stations."
+      }
+    }
+  },
+  "config_subentries": {
+    "station": {
+      "abort": {
+        "not_loaded": "The Metra integration must be loaded before you can add or change a station."
+      },
+      "entry_type": "Station",
+      "error": {
+        "already_configured": "This line, station and direction is already set up."
+      },
+      "initiate_flow": {
+        "reconfigure": "Reconfigure station",
+        "user": "Add station"
+      },
+      "step": {
+        "station": {
+          "data": {
+            "direction": "Direction",
+            "ignore_terms": "Alert terms to ignore",
+            "next": "Trains to show",
+            "station": "Station"
+          },
+          "data_description": {
+            "ignore_terms": "Hide service alerts that contain any of these words, such as construction."
+          },
+          "title": "Choose a station"
+        },
+        "user": {
+          "data": {
+            "line": "Line"
+          },
+          "title": "Choose a line"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "service_alert": {
+        "name": "Service alert"
+      }
+    },
+    "sensor": {
+      "next_arrival": {
+        "name": "Next arrival"
+      },
+      "next_delay": {
+        "name": "Next train delay"
+      },
+      "next_train": {
+        "name": "Next train"
+      }
+    }
+  },
+  "selector": {
+    "direction": {
+      "options": {
+        "both": "Both directions",
+        "inbound": "Inbound",
+        "outbound": "Outbound"
+      }
+    }
+  }
+}

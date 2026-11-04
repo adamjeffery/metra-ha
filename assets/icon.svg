@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Train with a clock">
+  <defs>
+    <mask id="train-cutouts">
+      <rect width="512" height="512" fill="#fff"/>
+      <rect x="112" y="92" width="228" height="122" rx="22" fill="#000"/>
+      <rect x="164" y="56" width="124" height="18" rx="9" fill="#000"/>
+      <circle cx="140" cy="290" r="26" fill="#000"/>
+      <circle cx="312" cy="290" r="26" fill="#000"/>
+      <circle cx="404" cy="404" r="110" fill="#000"/>
+    </mask>
+    <mask id="clock-hands">
+      <rect width="512" height="512" fill="#fff"/>
+      <path d="M404 404V344M404 404L444 428" stroke="#000" stroke-width="22" stroke-linecap="round" fill="none"/>
+    </mask>
+  </defs>
+  <g fill="#0E7C86">
+    <g mask="url(#train-cutouts)">
+      <rect x="72" y="32" width="308" height="370" rx="64"/>
+      <path d="M140 396L92 480M312 396L360 480M112 446H340" stroke="#0E7C86" stroke-width="28" stroke-linecap="round" fill="none"/>
+    </g>
+    <circle cx="404" cy="404" r="92" mask="url(#clock-hands)"/>
+  </g>
+</svg>

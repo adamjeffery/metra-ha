@@ -1,0 +1,3 @@
+pytest-homeassistant-custom-component
+gtfs-realtime-bindings==3.0.0
+home-assistant-frontend
