@@ -1,9 +1,9 @@
-"""Constants for the Metra integration."""
+"""Constants for the Metra Train Tracker integration."""
 
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 
-DOMAIN = "metra"
+DOMAIN = "metra_train_tracker"
 
 CENTRAL = ZoneInfo("America/Chicago")
 

@@ -1,6 +1,6 @@
 {
-  "domain": "metra",
-  "name": "Metra",
+  "domain": "metra_train_tracker",
+  "name": "Metra Train Tracker",
   "categories": ["vehicles_transport.public_transport"],
   "codeowners": ["@adamjeffery"],
   "config_flow": true,

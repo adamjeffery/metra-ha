@@ -1,5 +1,5 @@
 /**
- * Metra schedule card, served automatically by the Metra integration.
+ * Metra schedule card, served automatically by the Metra Train Tracker integration.
  *
  * Displays the schedule held by a station's "Next arrival" sensor.
  *
@@ -266,7 +266,7 @@ const EDITOR_SCHEMA = [
   {
     name: "entity",
     required: true,
-    selector: { entity: { filter: { integration: "metra", domain: "sensor", device_class: "timestamp" } } },
+    selector: { entity: { filter: { integration: "metra_train_tracker", domain: "sensor", device_class: "timestamp" } } },
   },
   {
     name: "time_format",

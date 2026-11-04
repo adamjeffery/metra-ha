@@ -1,4 +1,4 @@
-"""Base entity for the Metra integration."""
+"""Base entity for the Metra Train Tracker integration."""
 
 from __future__ import annotations
 

@@ -24,7 +24,7 @@ from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.metra.const import (
+from custom_components.metra_train_tracker.const import (
     CENTRAL,
     CONF_DIRECTION,
     CONF_IGNORE_TERMS,
@@ -36,7 +36,7 @@ from custom_components.metra.const import (
     SCHEDULE_URL,
     SUBENTRY_STATION,
 )
-from custom_components.metra.coordinator import schedule_cache_path
+from custom_components.metra_train_tracker.coordinator import schedule_cache_path
 
 from .conftest import alerts_feed, build_archive, empty_feed, trip_updates_feed
 
@@ -78,7 +78,7 @@ def make_entry(*stations: dict[str, Any]) -> MockConfigEntry:
     """Create a config entry holding the given stations."""
     return MockConfigEntry(
         domain=DOMAIN,
-        title="Metra",
+        title="Metra Train Tracker",
         data={CONF_API_KEY: "key"},
         subentries_data=[
             ConfigSubentryData(
@@ -392,7 +392,7 @@ async def test_add_station_creates_entities(
     """Adding a station from the flow creates its entities without a restart."""
     aioclient_mock.get(SCHEDULE_URL, content=build_archive())
     mock_feeds(aioclient_mock)
-    entry = MockConfigEntry(domain=DOMAIN, title="Metra", data={CONF_API_KEY: "key"})
+    entry = MockConfigEntry(domain=DOMAIN, title="Metra Train Tracker", data={CONF_API_KEY: "key"})
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -482,10 +482,10 @@ async def test_card_is_served(
 ) -> None:
     """The card is available with no manual install, and registered with a version."""
     assert await async_setup_component(hass, "http", {})
-    with patch("custom_components.metra.add_extra_js_url") as add_js:
+    with patch("custom_components.metra_train_tracker.add_extra_js_url") as add_js:
         await setup_entry(hass, aioclient_mock)
     url = add_js.call_args.args[1]
-    assert url.startswith("/metra_static/metra-card.js?v=")
+    assert url.startswith("/metra_train_tracker/metra-card.js?v=")
 
     client = await hass_client_no_auth()
     response = await client.get(url)

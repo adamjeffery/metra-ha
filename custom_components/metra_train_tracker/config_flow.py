@@ -1,4 +1,4 @@
-"""Config flow for the Metra integration."""
+"""Config flow for the Metra Train Tracker integration."""
 
 from __future__ import annotations
 
@@ -79,7 +79,7 @@ class MetraConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             errors = await self._async_validate_key(user_input[CONF_API_KEY])
             if not errors:
-                return self.async_create_entry(title="Metra", data=user_input)
+                return self.async_create_entry(title="Metra Train Tracker", data=user_input)
         return self.async_show_form(step_id="user", data_schema=API_KEY_SCHEMA, errors=errors)
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:

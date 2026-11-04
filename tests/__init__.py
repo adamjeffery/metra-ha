@@ -1,1 +1,1 @@
-"""Tests for the Metra integration."""
+"""Tests for the Metra Train Tracker integration."""

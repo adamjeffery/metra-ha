@@ -27,7 +27,7 @@
   "config_subentries": {
     "station": {
       "abort": {
-        "not_loaded": "The Metra integration must be loaded before you can add or change a station."
+        "not_loaded": "The Metra Train Tracker integration must be loaded before you can add or change a station."
       },
       "entry_type": "Station",
       "error": {

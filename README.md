@@ -1,4 +1,4 @@
-# Metra for Home Assistant
+# Metra Train Tracker for Home Assistant
 
 See upcoming [Metra](https://metra.com) trains, delays and service alerts for your
 stations in Home Assistant, with a dashboard card included.
@@ -30,18 +30,18 @@ You also get the **Metra Schedule** dashboard card, with no separate install.
 
 1. In HACS, open the ⋮ menu and choose **Custom repositories**.
 2. Add `https://github.com/adamjeffery/metra-ha` with the type **Integration**.
-3. Download **Metra**, then restart Home Assistant.
+3. Download **Metra Train Tracker**, then restart Home Assistant.
 
 ### Manual
 
-Copy `custom_components/metra` into the `custom_components` folder next to your
+Copy `custom_components/metra_train_tracker` into the `custom_components` folder next to your
 `configuration.yaml`, then restart Home Assistant.
 
 ## Set up
 
-1. Go to **Settings → Devices & services → Add integration**, choose **Metra** and
+1. Go to **Settings → Devices & services → Add integration**, choose **Metra Train Tracker** and
    enter your API key.
-2. On the Metra integration page, choose **Add station**, then pick:
+2. On the Metra Train Tracker integration page, choose **Add station**, then pick:
    - **Line** and **Station**
    - **Direction**: inbound, outbound or both
    - **Trains to show**: 1 to 10

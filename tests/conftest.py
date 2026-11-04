@@ -119,5 +119,5 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
 @pytest.fixture(autouse=True)
 def skip_card_setup() -> Generator[None]:
     """Skip frontend startup; tests that need the card serve it themselves."""
-    with patch("custom_components.metra.add_extra_js_url"):
+    with patch("custom_components.metra_train_tracker.add_extra_js_url"):
         yield

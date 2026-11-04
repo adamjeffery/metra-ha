@@ -1,4 +1,4 @@
-"""Data coordinator for the Metra integration."""
+"""Data coordinator for the Metra Train Tracker integration."""
 
 from __future__ import annotations
 

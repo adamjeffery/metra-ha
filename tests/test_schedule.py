@@ -6,9 +6,9 @@ from datetime import datetime
 
 import pytest
 
-from custom_components.metra.const import CENTRAL
-from custom_components.metra.gtfs import ScheduleParseError, parse_gtfs_time, parse_schedule
-from custom_components.metra.schedule import (
+from custom_components.metra_train_tracker.const import CENTRAL
+from custom_components.metra_train_tracker.gtfs import ScheduleParseError, parse_gtfs_time, parse_schedule
+from custom_components.metra_train_tracker.schedule import (
     RealtimeData,
     ScheduleQuery,
     build_schedule,
